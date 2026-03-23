@@ -2,11 +2,7 @@
 
 .profile-page-wrapper {
     min-height: 100vh;
-    background-color: #1a1a19;
-    /* ADDED: Dotted Pattern matching MainPage */
-    background-image: radial-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px);
-    background-size: 30px 30px; 
-    background-attachment: fixed;
+
 }
 
 /* ─── HEADER ─── */
