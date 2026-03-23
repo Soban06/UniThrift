@@ -1,0 +1,137 @@
+/* SignUp.css */
+
+.auth-page-container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    
+    /* THE DITHERED WALLPAPER (Assuming you moved it to src/components) */
+    background-image: url('./wallpaper.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    
+    /* Keep the pixels sharp */
+    image-rendering: pixelated;
+}
+
+/* The Title Banner */
+.unithrift-banner h1 {
+    background-color: #333332;
+    border: 4px solid #171716;
+    outline: 2px solid white;
+    padding: 15px 45px;
+    color: white;
+    font-size: 2.5rem;
+    margin-bottom: 25px;
+    letter-spacing: 2px;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.4);
+}
+
+/* The Main Container Box */
+.unithrift-box {
+    background-color: #333332;
+    border: 8px solid #171716; 
+    outline: 2px solid white;  
+    padding: 45px;
+    width: 100%;
+    max-width: 500px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+}
+
+.unithrift-box h2 {
+    color: white;
+    font-size: 2.2rem;
+    margin-bottom: 35px;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    font-weight: 900;
+}
+
+/* Input Groups */
+.input-group {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 20px;
+}
+
+.input-group label {
+    color: white;
+    font-weight: bold;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+}
+
+/* Mechanical Input Style */
+.input-group input, 
+.input-group select, 
+.input-group textarea {
+    background-color: #171716;
+    border: 2px solid white;
+    color: white;
+    padding: 14px;
+    font-size: 1rem;
+    outline: none;
+    transition: background 0.2s ease;
+}
+
+.input-group input:focus {
+    background-color: #222;
+}
+
+.file-input {
+    border: none !important;
+    padding: 10px 0 !important;
+}
+
+/* Error Messages */
+.message-alert {
+    background-color: #171716;
+    border-left: 6px solid #ff4444;
+    color: white;
+    padding: 15px;
+    margin-bottom: 25px;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+/* Auth Buttons */
+.btn-ribbon {
+    width: 100%;
+    background-color: white;
+    color: #171716;
+    border: 4px solid #171716;
+    outline: 2px solid white;
+    padding: 18px;
+    font-size: 1.3rem;
+    font-weight: 900;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: 0.2s;
+}
+
+.btn-ribbon:hover {
+    background-color: #ddd;
+    transform: translateY(-2px);
+}
+
+/* Bottom Link */
+.login-link {
+    margin-top: 30px;
+    color: #aaa;
+    text-align: center;
+    font-size: 0.95rem;
+}
+
+.login-link a {
+    color: white;
+    font-weight: bold;
+    text-decoration: underline;
+}

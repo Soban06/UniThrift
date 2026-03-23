@@ -1,0 +1,214 @@
+/* MainPage.css — fluid scaling for 1280px–1920px */
+
+.main-page-wrapper {
+    min-height: 100vh;
+}
+
+.top-nav-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: clamp(20px, 2vw, 35px) clamp(30px, 3.5vw, 60px);
+    gap: 8px;
+    position: relative;
+}
+
+/* ─── PANEL BASE ─── */
+.mechanical-panel {
+    position: relative;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: white;
+    clip-path: var(--clip);
+}
+
+.panel-inner {
+    position: absolute;
+    top: 5px; left: 5px; right: 5px; bottom: 5px;
+    background: #171716;
+    clip-path: var(--clip);
+    display: flex;
+    align-items: center;
+    color: white;
+}
+
+.panel-inner::after {
+    content: '';
+    position: absolute;
+    top: 4px; left: 4px; right: 4px; bottom: 4px;
+    background: #333332;
+    clip-path: var(--clip);
+}
+
+.panel-inner > * {
+    position: relative;
+    z-index: 1;
+}
+
+/* ─── LEFT PANEL ─── */
+.main-block {
+    flex: 3;
+    height: clamp(100px, 10vw, 160px);
+    --clip: polygon(0% 0%, 100% 0%, calc(100% - 60px) 100%, 0% 100%);
+    cursor: default; /* Stops the mouse from turning into a clicking hand */
+}
+
+.main-block .panel-inner {
+    --clip: polygon(0% 0%, 100% 0%, calc(100% - 60px) 100%, 0% 100%);
+    justify-content: flex-start;
+    padding: 0 clamp(25px, 3vw, 50px);
+}
+
+/* ─── NEW LOGO STYLING ─── */
+.nav-logo-img {
+    height: clamp(60px, 7vw, 110px); 
+    width: auto;
+    object-fit: contain;
+    margin-left: clamp(15px, 2.5vw, 40px); 
+    margin-top: clamp(10px, 1.5vw, 25px); 
+    filter: none;
+}
+
+/* ─── RIGHT PANEL ─── */
+.auth-block {
+    flex: 1;
+    min-width: clamp(180px, 16vw, 280px);
+    height: clamp(75px, 7.5vw, 120px);
+    --clip: polygon(60px 0%, 100% 0%, 100% 100%, 0% 100%);
+}
+
+.auth-block .panel-inner {
+    --clip: polygon(60px 0%, 100% 0%, 100% 100%, 0% 100%);
+    justify-content: center;
+    padding: 0 clamp(20px, 2vw, 40px) 0 clamp(40px, 5vw, 80px);
+}
+
+/* ─── DIVIDER ─── */
+.nav-divider {
+    position: absolute;
+    width: 2.5px;
+    background: white;
+    transform-origin: top center;
+    pointer-events: none;
+    z-index: 20;
+}
+
+/* ─── NAV CONTENT ─── */
+.nav-title {
+    color: white;
+    font-size: clamp(1.6rem, 2.2vw, 2.8rem);
+    font-weight: 900;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.login-trigger {
+    font-size: clamp(1rem, 1.3vw, 1.8rem);
+    font-weight: 900;
+    margin: 0;
+    letter-spacing: 0.05em;
+    color: white;
+}
+
+/* ─── USER PROFILE WIDGET ─── */
+.user-profile-widget {
+    display: flex;
+    align-items: center;
+    gap: clamp(10px, 1.2vw, 20px);
+    cursor: pointer;
+    position: relative;
+}
+
+.header-username {
+    color: white;
+    font-size: clamp(1.2rem, 1.5vw, 1.8rem);
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+.header-pfp {
+    width: clamp(35px, 3.5vw, 50px);
+    height: clamp(35px, 3.5vw, 50px);
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid white; 
+}
+
+/* ─── DROPDOWN MENU (White & Outside Clip Path) ─── */
+.header-dropdown {
+    position: absolute;
+    top: 90%; 
+    right: clamp(30px, 3.5vw, 60px); 
+    background: white; 
+    border: 6px solid #171716; 
+    outline: 2px solid white; 
+    display: flex;
+    flex-direction: column;
+    min-width: 200px;
+    z-index: 1000;
+    box-shadow: 0px 15px 30px rgba(0,0,0,0.8);
+}
+
+.header-dropdown button {
+    background: transparent;
+    border: none;
+    color: #171716; 
+    padding: 15px 25px;
+    text-align: right;
+    font-weight: 900;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 1px;
+}
+
+.header-dropdown button:first-child {
+    border-bottom: 4px solid #171716; 
+}
+
+.header-dropdown button:hover {
+    background: #171716;
+    color: white; 
+}
+
+/* ─── CARDS ─── */
+.cards-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: clamp(40px, 5vw, 80px);
+    margin-top: clamp(40px, 6vw, 100px);
+}
+
+.action-card {
+    background-color: white;
+    border: clamp(5px, 0.5vw, 8px) solid #171716;
+    outline: 2px solid white;
+    width: clamp(260px, 22vw, 420px);
+    height: clamp(340px, 28vw, 540px);
+    border-radius: clamp(35px, 4vw, 60px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: 0.3s ease;
+}
+
+.action-card:hover { transform: scale(1.05) translateY(-10px); }
+
+.card-img {
+    width: clamp(150px, 14vw, 270px);
+    height: clamp(150px, 14vw, 270px);
+    object-fit: contain;
+    margin-bottom: clamp(20px, 2.5vw, 40px);
+}
+
+.action-card h2 {
+    color: #171716;
+    font-size: clamp(1.8rem, 2.2vw, 3.2rem);
+    font-weight: 900;
+    margin: 0;
+}

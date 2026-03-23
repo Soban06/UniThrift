@@ -1,0 +1,400 @@
+/* ProfilePage.css */
+
+.profile-page-wrapper {
+    min-height: 100vh;
+    background-color: #1a1a19;
+    /* ADDED: Dotted Pattern matching MainPage */
+    background-image: radial-gradient(rgba(255, 255, 255, 0.15) 1px, transparent 1px);
+    background-size: 30px 30px; 
+    background-attachment: fixed;
+}
+
+/* ─── HEADER ─── */
+.profile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: clamp(20px, 2vw, 30px) clamp(30px, 3.5vw, 60px);
+    gap: 8px;
+    position: relative;
+}
+
+/* ── LEFT: USER-PAGE panel ── */
+.profile-banner {
+    flex: 1;
+    max-width: clamp(260px, 24vw, 420px);
+    height: clamp(100px, 10vw, 160px);
+    position: relative;
+    cursor: default;
+    background: white;
+    clip-path: polygon(0% 0%, 100% 0%, calc(100% - 40px) 100%, 0% 100%);
+}
+
+.profile-banner-inner {
+    position: absolute;
+    top: 5px; left: 5px; right: 5px; bottom: 5px;
+    background: #171716;
+    clip-path: polygon(0% 0%, 100% 0%, calc(100% - 40px) 100%, 0% 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.profile-banner-inner::after {
+    content: "";
+    position: absolute;
+    top: 4px; left: 4px; right: 4px; bottom: 4px;
+    background: #333332;
+    clip-path: polygon(0% 0%, 100% 0%, calc(100% - 40px) 100%, 0% 100%);
+}
+
+.profile-banner h1 {
+    position: relative;
+    z-index: 2;
+    margin: 0;
+    font-size: clamp(1.4rem, 2.2vw, 2.4rem);
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    color: white;
+    padding: 0;
+    text-align: center;
+    width: 100%;
+}
+
+/* ── DECORATIVE MIDDLE PARALLELOGRAM ── */
+.header-deco {
+    flex: 2;
+    height: clamp(100px, 10vw, 160px);
+    background: white;
+    clip-path: polygon(40px 0%, 100% 0%, calc(100% - 40px) 100%, 0% 100%);
+    position: relative;
+}
+
+/* ── RIGHT: BACK TO HOME PAGE panel ── */
+.back-ribbon {
+    flex: 1;
+    max-width: clamp(260px, 24vw, 420px);
+    /* MATCHED HEIGHT to other two panels */
+    height: clamp(100px, 10vw, 160px);
+    position: relative;
+    background-color: #ffffff !important; 
+    --clip: polygon(40px 0%, 100% 0%, 100% 100%, 0% 100%);
+    clip-path: var(--clip);
+    cursor: pointer;
+}
+
+.back-ribbon-inner {
+    position: absolute;
+    top: 5px; left: 5px; right: 5px; bottom: 5px;
+    background-color: #171716 !important; 
+    --inner-clip: polygon(36px 0%, 100% 0%, 100% 100%, 0% 100%);
+    clip-path: var(--inner-clip);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.back-ribbon-inner::after {
+    content: "";
+    position: absolute;
+    top: 4px; left: 4px; right: 4px; bottom: 4px;
+    background-color: #333332 !important; 
+    --after-clip: polygon(32px 0%, 100% 0%, 100% 100%, 0% 100%);
+    clip-path: var(--after-clip);
+    transition: background 0.2s;
+}
+
+.back-ribbon span {
+    position: relative;
+    z-index: 2;
+    color: white;
+    font-weight: 900;
+    font-size: clamp(1.1rem, 1.6vw, 1.9rem);
+    letter-spacing: 0.08em;
+    padding-left: clamp(15px, 2vw, 25px);
+}
+
+.back-ribbon:hover .back-ribbon-inner::after { 
+    background-color: #444443 !important; 
+}
+
+/* ─── GRID ─── */
+.profile-content-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr 1fr;
+    gap: clamp(20px, 2vw, 36px);
+    padding: 0 clamp(20px, 3vw, 50px) 40px;
+    align-items: start;
+}
+
+/* ─── LEFT COL ─── */
+.profile-left-col {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.profile-username {
+    font-size: clamp(1.6rem, 2.5vw, 2.8rem);
+    font-weight: 900;
+    margin: 0;
+}
+
+.profile-pic-frame {
+    border: 5px solid #171716;
+    outline: 2px solid white;
+    background-color: #333332;
+    width: 100%;
+    max-width: 100%;
+    aspect-ratio: 1;
+    overflow: hidden;
+}
+
+.profile-pic-frame img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.profile-description {
+    background-color: #333332;
+    border: 4px solid #171716;
+    outline: 2px solid white;
+    border-radius: 16px;
+    padding: 22px 26px;
+    max-width: 100%;
+}
+
+.profile-description h3 {
+    margin: 0 0 10px 0;
+    font-size: 1.2rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.7);
+}
+
+.profile-description ul {
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.profile-description li {
+    font-size: 1.05rem;
+    color: rgba(255,255,255,0.85);
+}
+
+/* ─── MID COL ─── */
+.profile-mid-col {
+    display: flex;
+    flex-direction: column;
+    margin-top: 60px;
+}
+
+.history-container {
+    background-color: #2a2a29;
+    border: 5px solid #171716;
+    outline: 2px solid white;
+    border-radius: 40px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    overflow: hidden;
+}
+
+.history-box {
+    padding: clamp(16px, 2vw, 28px) clamp(20px, 2.5vw, 35px);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: background 0.2s;
+}
+
+.history-box:not(:last-child) {
+    border-bottom: 2px solid rgba(255,255,255,0.12);
+}
+
+.history-box:hover {
+    background-color: rgba(255,255,255,0.04);
+}
+
+.history-box h4 {
+    margin: 0;
+    font-size: clamp(0.8rem, 1vw, 1rem);
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    color: rgba(255,255,255,0.6);
+    text-transform: uppercase;
+}
+
+.history-box a {
+    color: #00d4ff;
+    font-weight: bold;
+    font-size: clamp(0.85rem, 1.1vw, 1.05rem);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.history-box a:hover { color: #66e8ff; }
+
+/* ─── RECTANGLE EDIT BOX ─── */
+.edit-trigger-box {
+    margin-top: clamp(15px, 2vw, 25px);
+    height: 70px;
+    background-color: #333332;
+    border: 5px solid #171716;
+    outline: 2px solid white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    transition: transform 0.2s, background-color 0.2s;
+}
+
+.edit-trigger-box span {
+    color: white;
+    font-weight: 900;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-size: clamp(0.95rem, 1.1vw, 1.2rem);
+}
+
+.edit-trigger-box:hover {
+    transform: translateY(-2px);
+    background-color: #444443;
+}
+
+/* ─── STATS COL ─── */
+.stats-col {
+    display: flex;
+    flex-direction: column;
+    margin-top: 60px;
+}
+
+.stats-container {
+    background-color: #2a2a29;
+    border: 5px solid #171716;
+    outline: 2px solid white;
+    border-radius: 40px;
+    padding: clamp(20px, 2vw, 30px);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.stats-container h3 {
+    margin: 0;
+    font-size: clamp(1.3rem, 1.7vw, 1.9rem);
+    font-weight: 900;
+    letter-spacing: 0.05em;
+    padding-bottom: 10px;
+    border-bottom: 2px solid rgba(255,255,255,0.12);
+}
+
+.stats-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.stat-card {
+    background-color: white;
+    border: 3px solid #171716;
+    outline: 2px solid white;
+    border-radius: 16px;
+    height: clamp(60px, 6vw, 90px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 10px 20px;
+    overflow: hidden;
+    position: relative;
+}
+
+.stat-card span {
+    background: white;
+    color: #171716;
+    padding: 6px 18px;
+    font-weight: 900;
+    font-size: clamp(1.3rem, 1.7vw, 1.9rem);
+    border-radius: 6px;
+    position: relative;
+    z-index: 1;
+}
+
+.stat-card img {
+    height: 100%;
+    width: auto;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+/* ─── MODAL & ERROR ─── */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.edit-playcard {
+    background: #333332;
+    border: 6px solid #171716;
+    outline: 2px solid white;
+    width: 90%;
+    max-width: 500px;
+    padding: 0;
+}
+
+.playcard-header {
+    background: white;
+    padding: 15px;
+    text-align: center;
+}
+
+.playcard-header h2 { color: #171716; margin: 0; font-weight: 900; letter-spacing: 2px; }
+
+.playcard-body { padding: 30px; display: flex; flex-direction: column; gap: 20px; }
+
+.edit-field { display: flex; flex-direction: column; gap: 8px; }
+
+.edit-field label { font-size: 0.8rem; font-weight: 900; color: #aaa; }
+
+.edit-field input, .edit-field select, .edit-field textarea {
+    background: #171716; border: 2px solid white; color: white; padding: 12px; font-family: inherit;
+}
+
+.playcard-footer { padding: 0 30px 30px; display: flex; gap: 15px; }
+
+.p-btn { flex: 1; padding: 15px; font-weight: 900; cursor: pointer; border: 4px solid #171716; outline: 2px solid white; }
+
+.p-btn.save { background: white; color: #171716; }
+.p-btn.cancel { background: #171716; color: white; }
+
+.error-message-box {
+    background-color: #ff4444; 
+    border: 4px solid #171716;
+    outline: 2px solid white;
+    color: white;
+    padding: 12px;
+    font-weight: 900;
+    font-size: 0.9rem;
+    margin-bottom: 15px;
+    text-transform: uppercase;
+    animation: errorPulse 2s infinite;
+}
+
+@keyframes errorPulse {
+    0% { outline-color: white; }
+    50% { outline-color: #ff4444; }
+    100% { outline-color: white; }
+}
