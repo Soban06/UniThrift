@@ -13,7 +13,7 @@ app.use(express.json());
 // Make the 'uploads' folder publicly accessible
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Multer Configuration
+// Multer Configuration for imagess
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, 'uploads/'); 
@@ -24,7 +24,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-// SQL Configuration
+// SQL Configuration (getting from .env file)
 const dbConfig = {
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
@@ -117,7 +117,7 @@ sql.connect(dbConfig)
             }
         });
 
-        // --- UPDATE PROFILE ROUTE (NEW) ---
+        // --- UPDATE PROFILE ROUTE ---
         app.put('/api/users/update/:id', async (req, res) => {
             const userId = req.params.id;
             const { name, bio, departmentId, password } = req.body;
@@ -163,7 +163,7 @@ sql.connect(dbConfig)
 
         // Test route
         app.get('/', (req, res) => {
-            res.send("Welcome to the UniThrift Backend API! The server is alive and well.");
+            res.send("Welcome to the UniThrift Backend API! The server is alive and well  (つ｡˃ ᵕ ˂)つ.");
         });
 
         const PORT = process.env.PORT || 5000;
