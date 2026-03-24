@@ -1,7 +1,7 @@
 # UniThrift — API Documentation
 
 >Base URL: http://localhost:5000/api
-> Here are the exact API routes built in the Node.js/Express backend to make Iteration 1 function. If your TA asks how the React frontend talks to the MSSQL database, this is your answer.
+>> Here are the exact API routes built in the Node.js/Express backend to make Iteration 1 function. If your TA asks how the React frontend talks to the MSSQL database, this is your answer.
 
 ---
 
