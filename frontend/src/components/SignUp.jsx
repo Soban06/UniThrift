@@ -74,11 +74,10 @@ const SignUp = () => {
                     <div className="input-group">
                         <label>Department:</label>
                         <select name="departmentId" value={formData.departmentId} onChange={handleChange} required>
-                            <option value="1">Computer Science</option>
-                            <option value="2">Business Administration</option>
-                            <option value="3">Electrical Engineering</option>
-                            <option value="4">Software Engineering</option>
-                            <option value="5">Data Science</option>
+                            <option value="1">Data Science</option>
+                            <option value="2">Computer Science</option>
+                            <option value="3">Software Engineering</option>
+                            <option value="4">Electrical Engineering</option>
                         </select>
                     </div>
                     <div className="input-group">
