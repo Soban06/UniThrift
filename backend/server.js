@@ -74,14 +74,14 @@ sql.connect(dbConfig)
                     .input('picUrl', sql.VarChar, finalProfilePic)
                     .query(`
                         INSERT INTO Users (full_name, university_email, password_hash, department_id, role, user_description, profile_pic_url) 
-                        OUTPUT INSERTED.user_id, INSERTED.full_name, INSERTED.university_email, INSERTED.profile_pic_url, INSERTED.role
+                        OUTPUT INSERTED.user_id, INSERTED.full_name, INSERTED.university_email, INSERTED.profile_pic_url, INSERTED.role,INSERTED.user_description
                         VALUES (@name, @email, @password, @deptId, 'student', @bio, @picUrl)
                     `);
 
                 const newUser = insertResult.recordset[0];
                 res.status(201).json({ 
                     message: 'User registered successfully!',
-                    user: { id: newUser.user_id, name: newUser.full_name, email: newUser.university_email, profilePic: newUser.profile_pic_url, role: newUser.role }
+                    user: { id: newUser.user_id, name: newUser.full_name, email: newUser.university_email, profilePic: newUser.profile_pic_url, role: newUser.role,bio:newUser.user_description }
                 });
             } catch (err) {
                 console.error("Signup error:", err);
