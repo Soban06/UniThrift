@@ -1,5 +1,6 @@
 # UniThrift — API Documentation
 
+>Base URL: http://localhost:5000/api
 > Here are the exact API routes built in the Node.js/Express backend to make Iteration 1 function. If your TA asks how the React frontend talks to the MSSQL database, this is your answer.
 
 ---
@@ -8,7 +9,7 @@
 
 ---
 
-### `POST /api/signup`
+### `POST /signup`
 
 **What it does:** Registers a new student.
 
@@ -17,7 +18,7 @@ It first checks the `Users` table to ensure the email doesn't already exist. The
 
 ---
 
-### `POST /api/login`
+### `POST /login`
 
 **What it does:** Authenticates a returning student.
 
@@ -26,7 +27,7 @@ It queries the `Users` table by email. If found, it compares the hashed password
 
 ---
 
-### `PUT /api/users/update/:id`
+### `PUT /users/update/:id`
 
 **What it does:** Saves edits made in the Profile Page modal.
 
@@ -35,7 +36,7 @@ It first runs a `SELECT` query on the `Users` table to ensure the new chosen nam
 
 ---
 
-### `GET /api/departments`
+### `GET /departments`
 
 **What it does:** Populates the department dropdown menu on the signup and profile edit forms.
 
