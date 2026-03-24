@@ -22,7 +22,7 @@ CREATE TABLE Users (
     role VARCHAR(50) DEFAULT 'student',
     is_suspended BIT DEFAULT 0,
     created_at DATETIME DEFAULT GETDATE(),
-    profile_pic_url VARCHAR(MAX) DEFAULT NULL,
+    profile_pic_url VARCHAR(MAX) DEFAULT 'https://upload.wikimedia.org/wikipedia/commons/a/a3/Image-not-found.png',
     user_description VARCHAR(MAX) DEFAULT NULL,
 
     -- Named constraint for easy future management
