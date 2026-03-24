@@ -46,8 +46,8 @@ sql.connect(dbConfig)
         // --- SIGN UP ROUTE ---
         app.post('/api/signup', upload.single('profilePic'), async (req, res) => {
             const { name, email, password, departmentId, description } = req.body;
-            if (!email.endsWith('@nu.edu.pk')) {
-                return res.status(400).json({ error: 'Only @nu.edu.pk emails are allowed.' });
+            if (!email.endsWith('nu.edu.pk')) {
+                return res.status(400).json({ error: 'Only nu.edu.pk emails are allowed.' });
             }
             try {
                 const checkUser = await pool.request()
