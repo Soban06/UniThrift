@@ -1,67 +1,44 @@
 USE UniThrift;
 GO
 
--- 1. Departments
-INSERT INTO Departments (dept_name) VALUES 
-('Computer Science'), 
-('Electrical Engineering'), 
-('Business Administration'), 
-('Social Sciences');
+-- Clear existing data and reset IDs
+DELETE FROM Users;
+DELETE FROM Departments;
+DBCC CHECKIDENT ('Departments', RESEED, 0);
+DBCC CHECKIDENT ('Users', RESEED, 0);
+GO
 
--- 2. Categories
-INSERT INTO Categories (category_name) VALUES 
-('Textbooks'), 
-('Electronics'), 
-('Lab Gear'), 
-('Stationery'), 
-('Furniture');
+-- Seed Departments
+INSERT INTO Departments (department_name) 
+VALUES ('Data Science'), ('Computer Science'), ('Software Engineering'), ('Electrical Engineering');
+GO
 
--- 3. Users
--- (Passwords are just placeholders)
-INSERT INTO Users (full_name, university_email, password_hash, department_id, role) VALUES 
-('Alice Smith', 'alice@uni.edu', 'hash123', 1, 'student'),
-('Bob Jones', 'bob@uni.edu', 'hash456', 3, 'student'),
-('Charlie Davis', 'charlie@uni.edu', 'hash789', 1, 'admin'),
-('Dana White', 'dana@uni.edu', 'hash000', 2, 'student');
+-- Seed Users (24 Total)
+INSERT INTO Users (full_name, university_email, password_hash, department_id, reliability_score, role, is_suspended, user_description, profile_pic_url)
+VALUES 
+('Muhammad Soban', 'soban.sohail@nu.edu.pk', '$2b$10$hashed_pw_1', 1, 5.00, 'admin', 0, NULL, NULL),
+('Saad Jahangir', 'saad.jahangir@nu.edu.pk', '$2b$10$hashed_pw_2', 1, 5.00, 'student', 0, NULL, NULL),
+('Mahad Jawad R.', 'mahad.rana@nu.edu.pk', '$2b$10$hashed_pw_3', 1, 5.00, 'student', 0, NULL, NULL),
+('saadtyerr', 'l@nu.edu.pk', '$2b$10$ECwyNLshMkn...', 1, 5.00, 'student', 0, 'im a good boyooo >w<', 'http://localhost:5000/uploads/profile.jpg'),
+('Saad Jahangir', 'as@nu.edu.pk', '$2b$10$9neMAR1xHTqf...', 1, 5.00, 'student', 0, NULL, 'https://via.placeholder.com/150'),
+('monke', 'asd@nu.edu.pk', '$2b$10$GCgreGUmcA9...', 1, 5.00, 'student', 0, 'yo mama', 'http://localhost:5000/uploads/monke.jpg'),
+('mando', 'man@nu.edu.pk', '$2b$10$dlr368yVmGjj74...', 1, 5.00, 'student', 0, 'yo mama', 'http://localhost:5000/uploads/mando.jpg'),
+('samosa', 'jo@nu.edu.pk', '$2b$10$PJdcyC7dwjXJD...', 1, 5.00, 'student', 0, 'yo mamaaa', 'http://localhost:5000/uploads/samosa.jpg'),
 
--- 4. Items
-INSERT INTO Items (seller_id, title, description, price, listing_type, category_id, department_id, status, is_digital) VALUES 
-(1, 'Introduction to Algorithms', 'CLRS 3rd Edition, slightly used.', 45.00, 'resale', 1, 1, 'available', 0),
-(2, 'Scientific Calculator', 'Casio FX-991EX, works perfect.', 20.00, 'resale', 2, 2, 'available', 0),
-(1, 'Python for Data Science PDF', 'Comprehensive ebook for beginners.', 0.00, 'donation', 1, 1, 'available', 1),
-(4, 'Drawing Board', 'A3 size for engineering drawing.', 15.00, 'lending', 3, 2, 'on_loan', 0);
-
--- 5. Ebook Details (for the Python PDF)
-INSERT INTO Ebook_Details (item_id, author, edition, isbn, page_count, file_size_kb) VALUES 
-(3, 'Guido van Rossum', '2024 Edition', '978-3-16-148410-0', 450, 12400);
-
--- 6. Transactions
-INSERT INTO Transactions (item_id, buyer_id, seller_id, transaction_type, status) VALUES 
-(1, 2, 1, 'purchase', 'completed'),
-(4, 1, 4, 'borrow', 'pending');
-
--- 7. Cart
-INSERT INTO Cart (user_id, item_id, quantity) VALUES 
-(2, 2, 1),
-(4, 1, 1);
-
--- 8. Messages
-INSERT INTO Messages (sender_id, receiver_id, item_id, content) VALUES 
-(2, 1, 1, 'Hey Alice, is the algorithm book still available?'),
-(1, 2, 1, 'Yeah Bob, it is! Meet me at the cafeteria?');
-
--- 9. Ratings
-INSERT INTO Ratings (reviewer_id, reviewee_id, transaction_id, score, comment) VALUES 
-(2, 1, 1, 5, 'Fast response and book was in great condition.');
-
--- 10. SOS Requests
-INSERT INTO SOS_Requests (requester_id, item_needed, priority, department_id, status) VALUES 
-(4, 'Soldering Iron', 'high', 2, 'open'),
-(2, 'Stapler', 'low', 3, 'fulfilled');
-
--- 11. Wishlists
-INSERT INTO Wishlists (user_id, item_id) VALUES 
-(1, 2),
-(4, 3);
-
+('Areeba Malik', 'areeba@nu.edu.pk', '$2b$10$abc1', 2, 4.80, 'student', 0, 'Looking for a drawing tablet.', NULL),
+('Bilal Khan', 'bilal@nu.edu.pk', '$2b$10$abc2', 1, 4.50, 'student', 0, 'Selling my Calculus 2 notes.', NULL),
+('Dawood Ibrahim', 'dawood@nu.edu.pk', '$2b$10$abc3', 3, 5.00, 'student', 0, 'Anyone selling a cheap chair for hostel?', NULL),
+('Esha Pervez', 'esha@nu.edu.pk', '$2b$10$abc4', 4, 4.90, 'student', 0, 'Selling my old lab coat (Medium).', NULL),
+('Faizan Ahmed', 'faizan@nu.edu.pk', '$2b$10$abc5', 2, 4.20, 'student', 0, 'Need a Type-C to HDMI adapter.', NULL),
+('Ghufran Ali', 'ghufran@nu.edu.pk', '$2b$10$abc6', 1, 5.00, 'student', 0, 'Selling a 2nd hand monitor. 24 inch.', NULL),
+('Hania Amir', 'hania@nu.edu.pk', '$2b$10$abc7', 2, 4.75, 'student', 0, 'Looking for Semester 3 books (CS).', NULL),
+('Ibrahim Lodhi', 'ibrahim@nu.edu.pk', '$2b$10$abc8', 3, 4.60, 'student', 0, 'Selling my Logitech mouse.', NULL),
+('Jawad Sultan', 'jawad@nu.edu.pk', '$2b$10$abc9', 4, 5.00, 'student', 0, 'Selling a desk lamp.', NULL),
+('Khadija Shah', 'khadija@nu.edu.pk', '$2b$10$abc10', 2, 4.30, 'student', 0, 'Need a scientific calculator.', NULL),
+('Luqman Sheikh', 'luqman@nu.edu.pk', '$2b$10$abc11', 1, 5.00, 'student', 0, 'Selling my old headphones.', NULL),
+('Maryam Nawaz', 'maryam@nu.edu.pk', '$2b$10$abc12', 3, 4.95, 'student', 0, 'Looking for a second-hand cycle.', NULL),
+('Nouman Ejaz', 'nouman@nu.edu.pk', '$2b$10$abc13', 4, 4.40, 'student', 0, 'Selling a laptop stand.', NULL),
+('Omer Farooq', 'omer@nu.edu.pk', '$2b$10$abc14', 1, 5.00, 'student', 0, 'Need a backpack for uni.', NULL),
+('Parveen Bibi', 'parveen@nu.edu.pk', '$2b$10$abc15', 2, 5.00, 'student', 0, 'Selling handmade bookmarks.', NULL),
+('Qasim Ali', 'qasim@nu.edu.pk', '$2b$10$abc16', 3, 4.10, 'student', 0, 'Looking for a table fan.', NULL);
 GO
