@@ -1,18 +1,24 @@
 DELETE FROM Users;
 DELETE FROM Departments;
-DBCC CHECKIDENT ('Departments', RESEED, 0);
 DBCC CHECKIDENT ('Users', RESEED, 0);
 GO
 
--- 2. Seed Departments
-INSERT INTO Departments (department_name) 
-VALUES ('Data Science'), ('Computer Science'), ('Software Engineering'), ('Electrical Engineering');
+-- 2. Seed Departments 
+SET IDENTITY_INSERT Departments ON;
+
+INSERT INTO Departments (department_id, department_name) 
+VALUES 
+(1, 'Data Science'), 
+(2, 'Computer Science'), 
+(3, 'Software Engineering'), 
+(4, 'Electrical Engineering');
+
+SET IDENTITY_INSERT Departments OFF;
 GO
 
--- 3. Seed Users (24 Total)
+-- 3. Seed Users 
 INSERT INTO Users (full_name, university_email, password_hash, department_id, reliability_score, role, is_suspended, user_description, profile_pic_url)
 VALUES 
-
 ('Areeba Malik', 'areeba@nu.edu.pk', '$2b$10$abc1', 2, 4.80, 'student', 0, 'Looking for a drawing tablet.', 'https://upload.wikimedia.org/wikipedia/commons/a/a3/Image-not-found.png'),
 ('Bilal Khan', 'bilal@nu.edu.pk', '$2b$10$abc2', 1, 4.50, 'student', 0, 'Selling my Calculus 2 notes.', 'https://upload.wikimedia.org/wikipedia/commons/a/a3/Image-not-found.png'),
 ('Dawood Ibrahim', 'dawood@nu.edu.pk', '$2b$10$abc3', 3, 5.00, 'student', 0, 'Anyone selling a cheap chair for hostel?', 'https://upload.wikimedia.org/wikipedia/commons/a/a3/Image-not-found.png'),
