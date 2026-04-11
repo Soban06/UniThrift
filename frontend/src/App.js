@@ -4,6 +4,10 @@ import MainPage from './components/MainPage';
 import SignUp from './components/SignUp';
 import Login from './components/Login';
 import ProfilePage from './components/ProfilePage';
+import ItemUpload from './components/ItemUpload';
+// At the top of App.js
+import ItemPage from './components/ItemPage';
+import MarketplacePage from './components/MarketplacePage';
 
 function App() {
   return (
@@ -13,6 +17,9 @@ function App() {
         <Route path="/signup" element={<SignUp />} />
         <Route path="/login" element={<Login />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/upload-item" element={<ItemUpload />} />
+        <Route path="/item/:itemId" element={<ItemPage />} />
+        <Route path="/marketplace" element={<MarketplacePage />} />
       </Routes>
     </Router>
   );

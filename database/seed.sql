@@ -3,19 +3,6 @@ DELETE FROM Departments;
 DBCC CHECKIDENT ('Users', RESEED, 0);
 GO
 
--- 2. Seed Departments 
-SET IDENTITY_INSERT Departments ON;
-
-INSERT INTO Departments (department_id, department_name) 
-VALUES 
-(1, 'Data Science'), 
-(2, 'Computer Science'), 
-(3, 'Software Engineering'), 
-(4, 'Electrical Engineering');
-
-SET IDENTITY_INSERT Departments OFF;
-GO
-
 -- 3. Seed Users 
 INSERT INTO Users (full_name, university_email, password_hash, department_id, reliability_score, role, is_suspended, user_description, profile_pic_url)
 VALUES 

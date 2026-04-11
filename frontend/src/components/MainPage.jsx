@@ -6,7 +6,7 @@ const MainPage = () => {
     const navigate = useNavigate();
     const [user, setUser] = useState(null);
     const [showDropdown, setShowDropdown] = useState(false);
-    
+
     const leftRef = useRef(null);
     const rightRef = useRef(null);
     const headerRef = useRef(null);
@@ -18,16 +18,16 @@ const MainPage = () => {
         if (!leftRef.current || !rightRef.current || !headerRef.current) return;
 
         const headerRect = headerRef.current.getBoundingClientRect();
-        const leftRect   = leftRef.current.getBoundingClientRect();
-        const rightRect  = rightRef.current.getBoundingClientRect();
+        const leftRect = leftRef.current.getBoundingClientRect();
+        const rightRect = rightRef.current.getBoundingClientRect();
 
         // Top-right of left panel
-        const leftTopRightX  = leftRect.right  - headerRect.left;
-        const leftTopRightY  = leftRect.top    - headerRect.top;
+        const leftTopRightX = leftRect.right - headerRect.left;
+        const leftTopRightY = leftRect.top - headerRect.top;
 
         // Top-left of right panel
-        const rightTopLeftX  = rightRect.left  - headerRect.left + SLANT_PX;
-        const rightTopLeftY  = rightRect.top   - headerRect.top;
+        const rightTopLeftX = rightRect.left - headerRect.left + SLANT_PX;
+        const rightTopLeftY = rightRect.top - headerRect.top;
 
         // Midpoint
         const midX = (leftTopRightX + rightTopLeftX) / 2;
@@ -41,7 +41,7 @@ const MainPage = () => {
         setDividerStyle({
             position: 'absolute',
             left: `${midX}px`,
-            top:  `${midY}px`,
+            top: `${midY}px`,
             height: `${lineH}px`,
             transform: `rotate(${angleDeg}deg)`,
         });
@@ -73,7 +73,7 @@ const MainPage = () => {
                 {/* Removed the onClick navigation from this block */}
                 <div className="mechanical-panel main-block" ref={leftRef}>
                     <div className="panel-inner">
-                        <h1 className="nav-title" style={{pointerEvents: "none", userSelect: "none"}}>UNI-THRIFT</h1>
+                        <h1 className="nav-title" style={{ pointerEvents: "none", userSelect: "none" }}>UNI-THRIFT</h1>
                         <img src="/logo.png" alt="Logo" className="nav-logo-img" />
                     </div>
                 </div>
@@ -110,15 +110,29 @@ const MainPage = () => {
             </header>
 
             <div className="cards-container">
-                <div className="action-card" onClick={() => alert('Buying Soon')}>
+                {/* BUY CARD */}
+                <div className="action-card" onClick={() => navigate('/marketplace')}>
                     <img src="/buy.png" alt="Buy" className="card-img" />
                     <h2>BUY</h2>
                 </div>
-                <div className="action-card" onClick={() => alert('Selling Soon')}>
+
+                {/* SELL CARD (No Redirect) */}
+                <div
+                    className="action-card"
+                    onClick={() => {
+                        if (user) {
+                            navigate('/upload-item');
+                        } else {
+                            alert('You must be logged in to list items for sale!');
+                        }
+                    }}
+                >
                     <img src="/sell.png" alt="Sell" className="card-img" />
                     <h2>SELL</h2>
                 </div>
-                <div className="action-card" onClick={() => alert('Borrowing Soon')}>
+
+                {/* BORROW CARD */}
+                <div className="action-card" onClick={() => alert('Borrowing Feature Coming Soon!')}>
                     <img src="/borrow.png" alt="Borrow" className="card-img" />
                     <h2>BORROW</h2>
                 </div>
