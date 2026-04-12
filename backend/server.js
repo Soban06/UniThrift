@@ -17,6 +17,10 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Multer Configuration for images
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
+        // Automatically create uploads folder if it doesn't exist
+        if (!fs.existsSync('uploads/')) {
+            fs.mkdirSync('uploads/');
+        }
         cb(null, 'uploads/');
     },
     filename: (req, file, cb) => {
@@ -62,9 +66,10 @@ sql.connect(dbConfig)
                 const salt = await bcrypt.genSalt(10);
                 const hashedPassword = await bcrypt.hash(password, salt);
 
+                // 🌟 FIX: Updated to specific avatar default
                 const finalProfilePic = req.file
                     ? `http://localhost:5000/uploads/${req.file.filename}`
-                    : '/default.png';
+                    : '/default-avatar.png';
 
                 const insertResult = await pool.request()
                     .input('name', sql.VarChar, name)
@@ -90,22 +95,20 @@ sql.connect(dbConfig)
             }
         });
 
-        // --- ITEM UPLOAD ROUTE (FIXED) ---
-        // 🌟 Added 'upload.single' middleware here to parse FormData
+        // --- ITEM UPLOAD ROUTE ---
         app.post('/api/items/upload', upload.single('itemImage'), async (req, res) => {
             try {
-                // Now req.body will actually contain your data!
                 const {
                     sellerId, title, description, price,
                     listingType, departmentId, categoryId,
                     quantity
                 } = req.body;
 
-                // Handle the image path
+                // 🌟 FIX: Updated to specific item default
                 const finalImageUrl = req.file
                     ? `http://localhost:5000/uploads/${req.file.filename}`
-                     : '/default.png';
-                // 🌟 Using the 'pool' variable from the .then block
+                    : '/default-item.png';
+                
                 await pool.request()
                     .input('sellerId', sql.Int, sellerId)
                     .input('title', sql.VarChar, title)
@@ -127,13 +130,13 @@ sql.connect(dbConfig)
                 res.status(500).json({ error: "Database upload failed." });
             }
         });
+
         // --- EDIT ITEM DETAILS ---
         app.put('/api/items/update/:itemId', async (req, res) => {
             try {
                 const { itemId } = req.params;
                 const { title, item_description, price, stock_quantity, userId } = req.body;
 
-                // Ensure the user updating the item is actually the seller
                 const checkOwnership = await pool.request()
                     .input('itemId', sql.Int, itemId)
                     .input('userId', sql.Int, userId)
@@ -164,13 +167,13 @@ sql.connect(dbConfig)
                 res.status(500).send("Server Error");
             }
         });
+
         // --- DELETE ITEM ---
         app.delete('/api/items/:itemId', async (req, res) => {
             try {
                 const { itemId } = req.params;
-                const { userId } = req.body; // Get the user ID from the request body
+                const { userId } = req.body;
 
-                // 1. Ensure the user deleting the item is actually the seller
                 const checkOwnership = await pool.request()
                     .input('itemId', sql.Int, itemId)
                     .input('userId', sql.Int, userId)
@@ -180,7 +183,6 @@ sql.connect(dbConfig)
                     return res.status(403).json({ message: "Unauthorized. You do not own this item." });
                 }
 
-                // 2. Permanently delete the item
                 await pool.request()
                     .input('itemId', sql.Int, itemId)
                     .query('DELETE FROM Items WHERE item_id = @itemId');
@@ -189,6 +191,33 @@ sql.connect(dbConfig)
             } catch (err) {
                 console.error("Error deleting item:", err);
                 res.status(500).send("Server Error");
+            }
+        });
+
+        // --- PURCHASE / CHECKOUT ITEM (🌟 NEW FIX ADDED) ---
+        app.post('/api/checkout', async (req, res) => {
+            try {
+                const { itemId, userId, qty } = req.body;
+                
+                const purchaseQty = qty || 1; // Default to 1 if not provided
+
+                const result = await pool.request()
+                    .input('itemId', sql.Int, itemId)
+                    .input('qty', sql.Int, purchaseQty)
+                    .query(`
+                        UPDATE Items 
+                        SET stock_quantity = stock_quantity - @qty 
+                        WHERE item_id = @itemId AND stock_quantity >= @qty
+                    `);
+
+                if (result.rowsAffected[0] === 0) {
+                    return res.status(400).json({ error: "Item out of stock or requested quantity unavailable." });
+                }
+
+                res.status(200).json({ message: "Purchase successful!" });
+            } catch (err) {
+                console.error("Checkout error:", err);
+                res.status(500).json({ error: "Purchase failed." });
             }
         });
 
@@ -308,10 +337,20 @@ sql.connect(dbConfig)
             }
         });
 
+        // --- GET ALL DEPARTMENTS (🌟 NEW FIX ADDED) ---
+        app.get('/api/departments', async (req, res) => {
+            try {
+                const result = await pool.request().query('SELECT * FROM Departments');
+                res.status(200).json(result.recordset);
+            } catch (err) {
+                console.error("Departments fetch error:", err);
+                res.status(500).json({ error: "Failed to fetch departments." });
+            }
+        });
+
         // --- GET ALL MARKETPLACE ITEMS ---
         app.get('/api/items', async (req, res) => {
             try {
-                // We only want items that are 'available' and actually in stock
                 const result = await pool.request().query(`
                     SELECT i.*, 
                            u.full_name as seller_name, 
@@ -336,21 +375,18 @@ sql.connect(dbConfig)
         app.post('/api/wishlist/toggle', async (req, res) => {
             const { userId, itemId } = req.body;
             try {
-                // Check if it's already wishlisted
                 const check = await pool.request()
                     .input('userId', sql.Int, userId)
                     .input('itemId', sql.Int, itemId)
                     .query('SELECT * FROM Wishlist WHERE user_id = @userId AND item_id = @itemId');
 
                 if (check.recordset.length > 0) {
-                    // It exists, so remove it (Unlike)
                     await pool.request()
                         .input('userId', sql.Int, userId)
                         .input('itemId', sql.Int, itemId)
                         .query('DELETE FROM Wishlist WHERE user_id = @userId AND item_id = @itemId');
                     res.status(200).json({ wishlisted: false });
                 } else {
-                    // Doesn't exist, so add it (Like)
                     await pool.request()
                         .input('userId', sql.Int, userId)
                         .input('itemId', sql.Int, itemId)
@@ -367,7 +403,6 @@ sql.connect(dbConfig)
         app.get('/api/users/:userId/wishlist', async (req, res) => {
             const { userId } = req.params;
             try {
-                // Gets items, joining through the Wishlist table
                 const result = await pool.request()
                     .input('userId', sql.Int, userId)
                     .query(`

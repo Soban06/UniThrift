@@ -8,19 +8,23 @@ const ItemUpload = () => {
     const [sellerId, setSellerId] = useState(null);
     const [message, setMessage] = useState('');
     const [isSuccess, setIsSuccess] = useState(false);
+    
+    // 🌟 NEW: State to hold the dynamic departments
+    const [departments, setDepartments] = useState([]);
 
     const [formData, setFormData] = useState({
         title: '', 
         description: '', 
         price: '', 
         listingType: 'sell', 
-        departmentId: '1', 
+        departmentId: '', // 🌟 Defaulting to blank so they are forced to pick
         categoryId: '1',
-        quantity: 1 // 🌟 Initialized to 1
+        quantity: 1
     });
     const [itemImage, setItemImage] = useState(null);
 
     useEffect(() => {
+        // 1. Check Auth
         const storedUser = sessionStorage.getItem('user');
         if (storedUser) {
             const parsedUser = JSON.parse(storedUser);
@@ -28,6 +32,18 @@ const ItemUpload = () => {
         } else {
             navigate('/login');
         }
+
+        // 🌟 2. Fetch Departments for the dropdown
+        const fetchDepartments = async () => {
+            try {
+                const response = await axios.get('http://localhost:5000/api/departments');
+                setDepartments(response.data);
+            } catch (error) {
+                console.error("Failed to fetch departments", error);
+            }
+        };
+        fetchDepartments();
+
     }, [navigate]);
 
     const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -51,7 +67,7 @@ const ItemUpload = () => {
         dataToSend.append('listingType', formData.listingType);
         dataToSend.append('categoryId', formData.categoryId);
         dataToSend.append('departmentId', formData.departmentId);
-        dataToSend.append('quantity', formData.quantity); // 🌟 Appending quantity
+        dataToSend.append('quantity', formData.quantity);
         if (itemImage) dataToSend.append('itemImage', itemImage);
 
         try {
@@ -91,7 +107,6 @@ const ItemUpload = () => {
                         <input type="number" name="price" placeholder="e.g. 500" value={formData.price} onChange={handleChange} min="0" required />
                     </div>
 
-                    {/* 🌟 NEW QUANTITY INPUT 🌟 */}
                     <div className="input-group">
                         <label>Stock Quantity:</label>
                         <input type="number" name="quantity" value={formData.quantity} onChange={handleChange} min="1" required />
@@ -105,16 +120,20 @@ const ItemUpload = () => {
                         </select>
                     </div>
 
+                    {/* 🌟 NEW DYNAMIC DEPARTMENT DROPDOWN 🌟 */}
                     <div className="input-group">
                         <label>Target Department:</label>
                         <select name="departmentId" value={formData.departmentId} onChange={handleChange} required>
-                            <option value="1">Data Science</option>
-                            <option value="2">Computer Science</option>
-                            <option value="3">Software Engineering</option>
-                            <option value="4">Electrical Engineering</option>
+                            <option value="" disabled>Select Department...</option>
+                            {departments.map(dept => (
+                                <option key={dept.department_id} value={dept.department_id}>
+                                    {dept.department_name}
+                                </option>
+                            ))}
                         </select>
                     </div>
 
+                    {/* (Note: Categories are still hardcoded here, you can do the same dynamic fetch for them later if you want!) */}
                     <div className="input-group">
                         <label>Item Category:</label>
                         <select name="categoryId" value={formData.categoryId} onChange={handleChange} required>

@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import './ProfilePage.css'; // Still needed for the header/banner
-import './MarketplacePage.css'; // 🌟 The new dedicated CSS!
+import './ProfilePage.css'; 
+import './MarketplacePage.css'; 
 
 const MarketplacePage = () => {
     const navigate = useNavigate();
     const [items, setItems] = useState([]);
+    const [departments, setDepartments] = useState([]); // 🌟 NEW State
     const [loading, setLoading] = useState(true);
     
     const [searchQuery, setSearchQuery] = useState('');
@@ -19,17 +20,22 @@ const MarketplacePage = () => {
     });
 
     useEffect(() => {
-        const fetchItems = async () => {
+        // 🌟 Fetch both Items AND Departments simultaneously
+        const fetchData = async () => {
             try {
-                const response = await axios.get('http://localhost:5000/api/items');
-                setItems(response.data);
+                const [itemsResponse, deptsResponse] = await Promise.all([
+                    axios.get('http://localhost:5000/api/items'),
+                    axios.get('http://localhost:5000/api/departments')
+                ]);
+                setItems(itemsResponse.data);
+                setDepartments(deptsResponse.data);
             } catch (error) {
-                console.error("Error fetching marketplace:", error);
+                console.error("Error fetching marketplace data:", error);
             } finally {
                 setLoading(false);
             }
         };
-        fetchItems();
+        fetchData();
     }, []);
 
     const filteredItems = useMemo(() => {
@@ -73,7 +79,6 @@ const MarketplacePage = () => {
 
             <div className="marketplace-container">
                 
-                {/* --- SEARCH BAR --- */}
                 <div className="search-filter-row">
                     <input 
                         type="text" 
@@ -90,9 +95,10 @@ const MarketplacePage = () => {
                     </button>
                 </div>
 
-                {/* --- PREFERENCES DROPDOWN --- */}
                 {showFilters && (
                     <div className="preferences-dropdown">
+                        
+                        {/* 🌟 NEW DYNAMIC DEPARTMENT DROPDOWN 🌟 */}
                         <div className="pref-group">
                             <label>Department</label>
                             <select 
@@ -101,10 +107,11 @@ const MarketplacePage = () => {
                                 onChange={(e) => setFilters({...filters, departmentId: e.target.value})}
                             >
                                 <option value="">All Departments</option>
-                                <option value="1">Data Science</option>
-                                <option value="2">Computer Science</option>
-                                <option value="3">Software Engineering</option>
-                                <option value="4">Electrical Engineering</option>
+                                {departments.map(dept => (
+                                    <option key={dept.department_id} value={dept.department_id}>
+                                        {dept.department_name}
+                                    </option>
+                                ))}
                             </select>
                         </div>
 
@@ -131,7 +138,6 @@ const MarketplacePage = () => {
                     </div>
                 )}
 
-                {/* --- ITEMS GRID --- */}
                 {loading ? (
                     <h2 style={{ textAlign: 'center', color: 'white', marginTop: '50px' }}>Loading Marketplace...</h2>
                 ) : displayedItems.length === 0 ? (
@@ -162,10 +168,7 @@ const MarketplacePage = () => {
                             ))}
                         </div>
 
-                        {/* --- PAGINATION BUTTONS --- */}
                         <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '40px', marginBottom: '40px' }}>
-                            
-                            {/* Only show EXPAND MORE if there are hidden items left */}
                             {filteredItems.length > visibleCount && (
                                 <div 
                                     className="edit-trigger-box" 
@@ -176,21 +179,18 @@ const MarketplacePage = () => {
                                 </div>
                             )}
 
-                            {/* Only show SHOW LESS if the user has expanded past the initial 16 */}
                             {visibleCount > 16 && (
                                 <div 
                                     className="edit-trigger-box" 
                                     style={{ width: '200px', backgroundColor: '#444', margin: 0, cursor: 'pointer' }}
                                     onClick={() => {
                                         setVisibleCount(16);
-                                        // Smoothly scroll back to the top of the list!
                                         window.scrollTo({ top: 0, behavior: 'smooth' }); 
                                     }}
                                 >
                                     <span>SHOW LESS</span>
                                 </div>
                             )}
-                            
                         </div>
                     </>
                 )}

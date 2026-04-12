@@ -15,7 +15,6 @@ const ItemPage = () => {
     // Tracks if someone is logged in
     const [currentUserId, setCurrentUserId] = useState(null);
 
-    // other states (item, loading, isWishlisted, etc.)
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editFormData, setEditFormData] = useState({
         title: '', item_description: '', price: 0, stock_quantity: 0
@@ -35,7 +34,7 @@ const ItemPage = () => {
                 const response = await axios.get('http://localhost:5000/api/items/' + itemId);
                 setItem(response.data);
 
-                // 🌟 ADD THIS RIGHT HERE: Pre-fill the edit form with the current data
+                // Pre-fill the edit form with the current data
                 setEditFormData({
                     title: response.data.title,
                     item_description: response.data.item_description,
@@ -43,86 +42,111 @@ const ItemPage = () => {
                     stock_quantity: response.data.stock_quantity
                 });
 
-                // 🌟 ADD THIS RIGHT HERE: Pre-fill the edit form with the current data
-                setEditFormData({
-                    title: response.data.title,
-                    item_description: response.data.item_description,
-                    price: response.data.price,
-                    stock_quantity: response.data.stock_quantity
-                });
-                // 2. Fetch wishlist state to see if the heart should be red on load!
-                if(userId) {
-                        const wishListRes = await axios.get('http://localhost:5000/api/users/' + userId + '/wishlist');
-                        const alreadyLiked = wishListRes.data.some(wItem => wItem.item_id.toString() === itemId.toString());
-                        setIsWishlisted(alreadyLiked);
-                    }
-
-                } catch (error) {
-                    console.error("Error fetching item details:", error);
-                } finally {
-                    setLoading(false);
+                // 2. Fetch wishlist state to see if the heart should be red on load
+                if (userId) {
+                    const wishListRes = await axios.get('http://localhost:5000/api/users/' + userId + '/wishlist');
+                    const alreadyLiked = wishListRes.data.some(wItem => wItem.item_id.toString() === itemId.toString());
+                    setIsWishlisted(alreadyLiked);
                 }
-            };
 
-            fetchItemData();
-        }, [itemId]);
+            } catch (error) {
+                console.error("Error fetching item details:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
 
-    // --- WISHLIST LOGIC (Talks to DB, No Redirect) ---
+        fetchItemData();
+    }, [itemId]);
+
+    // --- WISHLIST LOGIC ---
     const toggleWishlist = async () => {
         if (!currentUserId) {
             alert('Please log in to add items to your wishlist!');
-            return; // Stops here, no redirect!
+            return; 
         }
 
         try {
-            // "Optimistic Update": change the heart instantly so it feels fast
             setIsWishlisted(!isWishlisted);
-
-            // Tell the SQL Database to actually save it
             await axios.post('http://localhost:5000/api/wishlist/toggle', {
                 userId: currentUserId,
                 itemId: itemId
             });
-            console.log("Wishlist updated in database!");
         } catch (err) {
-            console.error("Failed to toggle wishlist in database", err);
-            // Revert the heart back if the server crashes
+            console.error("Failed to toggle wishlist", err);
             setIsWishlisted(!isWishlisted);
         }
     };
-const handleSaveEdit = async () => {
+
+    // --- EDIT LOGIC ---
+    const handleSaveEdit = async () => {
         try {
             await axios.put(`http://localhost:5000/api/items/update/${itemId}`, {
                 ...editFormData,
-                userId: currentUserId // Prove to the backend that we own it
+                userId: currentUserId 
             });
             alert("Listing updated successfully!");
             setIsEditModalOpen(false);
-            window.location.reload(); // Refresh to see the new data immediately
+            window.location.reload(); 
         } catch (error) {
             console.error("Failed to update item", error);
             alert("Error updating item.");
         }
     };
+
+    // --- DELETE LOGIC ---
     const handleDelete = async () => {
-        // Built-in browser confirmation popup
         const isConfirmed = window.confirm("Are you sure you want to permanently delete this listing?");
-        
         if (isConfirmed) {
             try {
-                // Axios delete requires a specific syntax to send a 'body' payload
                 await axios.delete(`http://localhost:5000/api/items/${itemId}`, {
                     data: { userId: currentUserId } 
                 });
-                
                 alert("Listing deleted successfully!");
-                navigate('/'); // Send them back to the marketplace since the item is gone
+                navigate('/'); 
             } catch (error) {
                 console.error("Failed to delete item", error);
                 alert("Error deleting item.");
             }
         }
     };
+
+    // --- PURCHASE LOGIC (FIXED) ---
+    const handlePurchase = async () => {
+        if (!currentUserId) {
+            alert('You must be logged in to make a purchase!');
+            return;
+        }
+
+        if (buyQuantity > item.stock_quantity) {
+            alert("You cannot buy more than the available stock!");
+            return;
+        }
+
+        try {
+            await axios.post('http://localhost:5000/api/checkout', { 
+                itemId: item.item_id, 
+                userId: currentUserId, 
+                qty: Number(buyQuantity) // 🌟 Forces input into a strict Math Number
+            });
+            
+            alert("Purchase successful!");
+            
+            // 🌟 Instantly drop the stock on the screen
+            setItem(prevItem => ({
+                ...prevItem,
+                stock_quantity: prevItem.stock_quantity - Number(buyQuantity)
+            }));
+
+            setBuyQuantity(1); // Reset input box
+            
+        } catch (error) {
+            console.error(error);
+            alert("Error purchasing item. It might be out of stock!");
+        }
+    };
+
+
     if (loading) return <div className="profile-page-wrapper"><h1 style={{ color: 'white', textAlign: 'center', marginTop: '50px' }}>Loading Item...</h1></div>;
     if (!item) return <div className="profile-page-wrapper"><h1 style={{ color: 'white', textAlign: 'center', marginTop: '50px' }}>Item Not Found</h1></div>;
 
@@ -192,7 +216,6 @@ const handleSaveEdit = async () => {
                                     value={buyQuantity}
                                     onChange={(e) => {
                                         const val = parseInt(e.target.value);
-                                        // Prevents typing a quantity higher than stock
                                         setBuyQuantity(val > item.stock_quantity ? item.stock_quantity : val);
                                     }}
                                     min="1"
@@ -223,14 +246,7 @@ const handleSaveEdit = async () => {
                                     cursor: isOutOfStock ? 'not-allowed' : 'pointer',
                                     opacity: isOutOfStock ? 0.6 : 1
                                 }}
-                                onClick={() => {
-                                    // --- BUY LOGIC (No Redirect) ---
-                                    if (!currentUserId) {
-                                        alert('You must be logged in to make a purchase!');
-                                        return;
-                                    }
-                                    alert('Purchasing ' + buyQuantity + ' units of ' + item.title);
-                                }}
+                                onClick={handlePurchase} // 🌟 Wired up the new function here!
                             >
                                 <span>{isOutOfStock ? 'SOLD OUT' : 'BUY NOW'}</span>
                             </button>
@@ -286,12 +302,9 @@ const handleSaveEdit = async () => {
                                 <span>Borrowed: 4</span>
                             </div>
 
-                            {/* 🌟 THE NEW WISHLISTED BLOCK 🌟 */}
                             <div className="stat-card">
-                                {/* If you don't have a specific image yet, you can use a text emoji inside a span, or link to your heart image! */}
                                 <img src="/stats-wishlist.png" alt="Wishlist" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'inline'; }} />
                                 <span style={{ display: 'none', fontSize: '1.5rem', marginRight: '10px' }}>❤️</span>
-
                                 <span>Wishlisted: {item.wishlist_count || 0}</span>
                             </div>
 
@@ -299,6 +312,7 @@ const handleSaveEdit = async () => {
                     </div>
                 </div>
             </div>
+
             {/* --- EDIT ITEM MODAL --- */}
             {isEditModalOpen && (
                 <div className="modal-overlay" onClick={() => setIsEditModalOpen(false)}>
