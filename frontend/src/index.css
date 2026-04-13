@@ -5,14 +5,9 @@ body {
   padding: 0;
   background-color: #171716;
   
-  /* Change #333332 to #555554 for a lighter, more visible gray.
-     Change 1px to 1.5px or 2px to make the dots physically "chunkier".
-  */
+
   background-image: radial-gradient(#555554 2px, transparent 2px);
   
-  /* Change 30px to 40px if you want more space between the dots, 
-     or keep it at 30px for a dense technical grid. 
-  */
   background-size: 40px 40px; 
   
   background-attachment: fixed;
@@ -25,12 +20,12 @@ body {
   min-height: 100vh;
 }
 
-/* Common Mechanical Style for all Buttons */
+
 button, .btn-ribbon, .nav-ribbon, .back-ribbon, .chat-btn {
   background-color: #333332 !important;
   color: white !important;
-  border: 4px solid #171716 !important; /* The Gray Gap */
-  outline: 2px solid white !important;  /* The White Border */
+  border: 4px solid #171716 !important; /*  Gray Gap */
+  outline: 2px solid white !important;  /* White Border */
   font-weight: bold;
   text-transform: uppercase;
   cursor: pointer;
