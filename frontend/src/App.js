@@ -5,7 +5,6 @@ import SignUp from './components/SignUp';
 import Login from './components/Login';
 import ProfilePage from './components/ProfilePage';
 import ItemUpload from './components/ItemUpload';
-// At the top of App.js
 import ItemPage from './components/ItemPage';
 import MarketplacePage from './components/MarketplacePage';
 
