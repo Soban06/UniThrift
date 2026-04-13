@@ -66,7 +66,6 @@ sql.connect(dbConfig)
                 const salt = await bcrypt.genSalt(10);
                 const hashedPassword = await bcrypt.hash(password, salt);
 
-                // 🌟 FIX: Updated to specific avatar default
                 const finalProfilePic = req.file
                     ? `http://localhost:5000/uploads/${req.file.filename}`
                     : '/default-avatar.png';
@@ -104,7 +103,6 @@ sql.connect(dbConfig)
                     quantity
                 } = req.body;
 
-                // 🌟 FIX: Updated to specific item default
                 const finalImageUrl = req.file
                     ? `http://localhost:5000/uploads/${req.file.filename}`
                     : '/default-item.png';
@@ -194,7 +192,7 @@ sql.connect(dbConfig)
             }
         });
 
-        // --- PURCHASE / CHECKOUT ITEM (🌟 NEW FIX ADDED) ---
+        // --- PURCHASE / CHECKOUT ITEM  ---
         app.post('/api/checkout', async (req, res) => {
             try {
                 const { itemId, userId, qty } = req.body;
@@ -337,7 +335,7 @@ sql.connect(dbConfig)
             }
         });
 
-        // --- GET ALL DEPARTMENTS (🌟 NEW FIX ADDED) ---
+        // --- GET ALL DEPARTMENTS ---
         app.get('/api/departments', async (req, res) => {
             try {
                 const result = await pool.request().query('SELECT * FROM Departments');
