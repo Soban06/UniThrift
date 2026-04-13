@@ -151,7 +151,7 @@ const ProfilePage = () => {
                             </span>
                         </div>
 
-                        {/* 🌟 NEW WISHLIST BOX 🌟 */}
+                        {/*  NEW WISHLIST BOX  */}
                         <div className="history-box" onClick={handleOpenWishlist} style={{ cursor: 'pointer', transition: '0.2s' }}>
                             <h4>MY WISHLIST</h4>
                             <span style={{ color: '#FF4500', textDecoration: 'underline', fontWeight: 'bold' }}>
@@ -252,7 +252,7 @@ const ProfilePage = () => {
                 </div>
             )}
 
-            {/* --- 🌟 WISHLIST MODAL 🌟 --- */}
+            {/* --- WISHLIST MODAL --- */}
             {showWishlistModal && (
                 <div className="modal-overlay">
                     <div className="edit-playcard">
