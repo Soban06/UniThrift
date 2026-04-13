@@ -12,7 +12,7 @@ const MainPage = () => {
     const headerRef = useRef(null);
     const [dividerStyle, setDividerStyle] = useState({});
 
-    const SLANT_PX = 60; // must match CSS --clip polygon offset
+    const SLANT_PX = 60;
 
     const calcDivider = () => {
         if (!leftRef.current || !rightRef.current || !headerRef.current) return;
@@ -70,7 +70,6 @@ const MainPage = () => {
             <header className="top-nav-container" ref={headerRef}>
 
                 {/* --- LEFT PANEL: Title + Logo --- */}
-                {/* Removed the onClick navigation from this block */}
                 <div className="mechanical-panel main-block" ref={leftRef}>
                     <div className="panel-inner">
                         <h1 className="nav-title" style={{ pointerEvents: "none", userSelect: "none" }}>UNI-THRIFT</h1>
@@ -81,7 +80,7 @@ const MainPage = () => {
                 {/* --- THE SLANTED DIVIDER --- */}
                 <div className="nav-divider" style={dividerStyle} />
 
-                {/* --- RIGHT PANEL: Auth / Profile --- */}
+                {/* ---RIGHT PANEL---*/}
                 <div className="mechanical-panel auth-block" ref={rightRef} onClick={() => !user && navigate('/login')}>
                     <div className="panel-inner">
                         {user ? (
@@ -95,7 +94,7 @@ const MainPage = () => {
                     </div>
                 </div>
 
-                {/* --- THE DROPDOWN (Outside clip-path panels) --- */}
+                {/* --- THE DROPDOWN */}
                 {user && showDropdown && (
                     <div className="header-dropdown">
                         <button onClick={(e) => { e.stopPropagation(); navigate('/profile'); setShowDropdown(false); }}>
@@ -116,7 +115,7 @@ const MainPage = () => {
                     <h2>BUY</h2>
                 </div>
 
-                {/* SELL CARD (No Redirect) */}
+                {/* SELL CARD */}
                 <div
                     className="action-card"
                     onClick={() => {
