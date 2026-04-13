@@ -1,4 +1,4 @@
-/* MainPage.css — fluid scaling for 1280px–1920px */
+/* MainPage.css */
 
 .main-page-wrapper {
     min-height: 100vh;
@@ -52,7 +52,7 @@
     flex: 3;
     height: clamp(100px, 10vw, 160px);
     --clip: polygon(0% 0%, 100% 0%, calc(100% - 60px) 100%, 0% 100%);
-    cursor: default; /* Stops the mouse from turning into a clicking hand */
+    cursor: default; 
 }
 
 .main-block .panel-inner {
@@ -136,7 +136,7 @@
     border: 2px solid white; 
 }
 
-/* ─── DROPDOWN MENU (White & Outside Clip Path) ─── */
+/* ─── DROPDOWN MENU─── */
 .header-dropdown {
     position: absolute;
     top: 90%; 
