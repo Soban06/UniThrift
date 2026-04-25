@@ -30,14 +30,17 @@ const ItemPage = () => {
                     setCurrentUserId(userId);
                 }
 
+                // 1. Fetch the Item Details (Our backend now perfectly includes BOTH seller & item ratings natively!)
                 const response = await axios.get('http://localhost:5000/api/items/' + itemId);
-                setItem(response.data);
+                const itemData = response.data;
+
+                setItem(itemData);
 
                 setEditFormData({
-                    title: response.data.title,
-                    item_description: response.data.item_description,
-                    price: response.data.price,
-                    stock_quantity: response.data.stock_quantity
+                    title: itemData.title,
+                    item_description: itemData.item_description,
+                    price: itemData.price,
+                    stock_quantity: itemData.stock_quantity
                 });
 
                 if (userId) {
@@ -153,34 +156,27 @@ const ItemPage = () => {
             const token = sessionStorage.getItem('token');
 
             if (item.listing_type === 'borrow') {
-                // BORROW PATH: Triggers the Handshake
                 await axios.post('http://localhost:5000/api/transactions/borrow', { 
                     itemId: item.item_id, 
                     buyerId: currentUserId, 
                     sellerId: item.seller_id,
                     qty: Number(buyQuantity) 
-                }, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                }, { headers: { Authorization: `Bearer ${token}` } });
                 
                 setIsPurchaseSuccess(true);
                 setPurchaseMessage("⏳ Borrow request sent! Waiting for lender to approve.");
             } else {
-                // BUY PATH: Instant Purchase
                 await axios.post('http://localhost:5000/api/transactions/purchase', { 
                     itemId: item.item_id, 
                     buyerId: currentUserId, 
                     sellerId: item.seller_id,
                     qty: Number(buyQuantity) 
-                }, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                }, { headers: { Authorization: `Bearer ${token}` } });
                 
                 setIsPurchaseSuccess(true);
                 setPurchaseMessage("✅ Purchase successful!");
             }
             
-            // Deduct stock for both scenarios immediately to reserve the item
             setItem(prevItem => ({
                 ...prevItem,
                 stock_quantity: prevItem.stock_quantity - Number(buyQuantity),
@@ -314,7 +310,6 @@ const ItemPage = () => {
                     {!isOwner ? (
                         <>
                             <div style={{ display: 'flex', gap: '15px', marginTop: '20px', alignItems: 'center' }}>
-                                {/* 🌟 DYNAMIC BUTTON TEXT based on Borrow/Sell status */}
                                 <button disabled={isOutOfStock} onClick={handlePurchase}
                                     style={{ flex: 1, backgroundColor: isOutOfStock ? '#333' : '#FF4500', color: 'white', padding: '15px', border: '1px solid #555', cursor: isOutOfStock ? 'not-allowed' : 'pointer', opacity: isOutOfStock ? 0.6 : 1, fontWeight: 'bold', fontSize: '1.1rem', textTransform: 'uppercase' }}>
                                     {isOutOfStock ? 'UNAVAILABLE' : (item.listing_type === 'borrow' ? 'ASK TO BORROW' : 'BUY NOW')}
@@ -370,17 +365,35 @@ const ItemPage = () => {
                                 </div>
                             </div>
                             
+                            {/* 🌟 ITEM'S SPECIFIC RATING */}
                             <div style={{ backgroundColor: 'white', color: 'black', height: '60px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', border: '2px solid #000' }}>
-                                <div style={{ display: 'flex', width: '180px', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', width: '220px', alignItems: 'center' }}>
+                                    <span style={{ width: '35px', textAlign: 'center', marginRight: '15px', fontSize: '1.4rem' }}>📦</span>
+                                    {item.item_rating > 0 ? (
+                                        <span>Item: {Number(item.item_rating).toFixed(2)} / 5.00</span>
+                                    ) : (
+                                        <span style={{ fontStyle: 'italic', fontSize: '1rem', color: '#666' }}>Item: Unrated</span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* 🌟 SELLER'S OVERALL RATING */}
+                            <div style={{ backgroundColor: 'white', color: 'black', height: '60px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', border: '2px solid #000' }}>
+                                <div style={{ display: 'flex', width: '220px', alignItems: 'center' }}>
                                     <span style={{ width: '35px', textAlign: 'center', marginRight: '15px', fontSize: '1.4rem' }}>⭐</span>
-                                    <span>Rating: 8.5/10</span>
+                                    {item.seller_rating ? (
+                                        <span>Seller: {Number(item.seller_rating).toFixed(2)} / 5.00</span>
+                                    ) : (
+                                        <span style={{ fontStyle: 'italic', fontSize: '1rem', color: '#666' }}>Seller: Unrated</span>
+                                    )}
                                 </div>
                             </div>
                             
+                            {/* 🌟 DYNAMIC BORROWED STAT (Instead of hardcoded 4) */}
                             <div style={{ backgroundColor: 'white', color: 'black', height: '60px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', border: '2px solid #000' }}>
                                 <div style={{ display: 'flex', width: '180px', alignItems: 'center' }}>
                                     <span style={{ width: '35px', textAlign: 'center', marginRight: '15px', fontSize: '1.4rem' }}>🤝</span>
-                                    <span>Borrowed: 4</span>
+                                    <span>Borrowed: {item.borrowed_count || 0}</span>
                                 </div>
                             </div>
                             

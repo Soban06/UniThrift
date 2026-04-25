@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
-import NotificationCenter from './NotificationCenter'; // 🌟 Restored the import!
+import NotificationCenter from './NotificationCenter'; 
 import './ProfilePage.css'; 
 
 const ProfilePage = () => {
@@ -10,18 +10,28 @@ const ProfilePage = () => {
 
     const [profileUser, setProfileUser] = useState(null);
     const [isOwnProfile, setIsOwnProfile] = useState(true);
-    const [currentUserId, setCurrentUserId] = useState(null); // 🌟 Restored currentUserId state
+    const [currentUserId, setCurrentUserId] = useState(null); 
     const [loading, setLoading] = useState(true);
+
+    const [purchaseHistory, setPurchaseHistory] = useState([]);
+    const [borrowHistory, setBorrowHistory] = useState([]);
+    const [sellingHistory, setSellingHistory] = useState([]);
+    const [wishlist, setWishlist] = useState([]);
+
+    // 🌟 STATE FOR THE HISTORY MODAL
+    const [activeModal, setActiveModal] = useState(null); // 'purchases', 'borrows', 'selling', 'wishlist'
 
     useEffect(() => {
         const fetchProfileData = async () => {
             try {
                 const storedUserStr = sessionStorage.getItem('user');
+                const token = sessionStorage.getItem('token');
                 let loggedInUserId = null;
+                
                 if (storedUserStr) {
                     const storedUser = JSON.parse(storedUserStr);
                     loggedInUserId = storedUser.id || storedUser.user_id;
-                    setCurrentUserId(loggedInUserId); // 🌟 Set it so we can pass it to Notifications
+                    setCurrentUserId(loggedInUserId); 
                 }
 
                 const targetUserId = urlUserId || loggedInUserId;
@@ -31,10 +41,27 @@ const ProfilePage = () => {
                     return;
                 }
 
-                setIsOwnProfile(String(targetUserId) === String(loggedInUserId));
+                const isOwn = String(targetUserId) === String(loggedInUserId);
+                setIsOwnProfile(isOwn);
 
                 const userRes = await axios.get(`http://localhost:5000/api/users/${targetUserId}/public`);
                 setProfileUser(userRes.data);
+
+                const sellRes = await axios.get(`http://localhost:5000/api/users/${targetUserId}/listings`);
+                setSellingHistory(sellRes.data);
+
+                if (isOwn && token) {
+                    const headers = { headers: { Authorization: `Bearer ${token}` } };
+                    const [purchases, borrows, wishes] = await Promise.all([
+                        axios.get(`http://localhost:5000/api/users/${targetUserId}/purchases`, headers),
+                        axios.get(`http://localhost:5000/api/users/${targetUserId}/borrows`, headers),
+                        axios.get(`http://localhost:5000/api/users/${targetUserId}/wishlist`, headers)
+                    ]);
+
+                    setPurchaseHistory(purchases.data);
+                    setBorrowHistory(borrows.data);
+                    setWishlist(wishes.data);
+                }
 
             } catch (error) {
                 console.error("Error fetching profile", error);
@@ -48,6 +75,75 @@ const ProfilePage = () => {
 
     if (loading) return <div className="profile-page-wrapper"><h1 style={{color: 'white', textAlign: 'center', marginTop: '50px'}}>Loading...</h1></div>;
     if (!profileUser) return <div className="profile-page-wrapper"><h1 style={{color: 'white', textAlign: 'center', marginTop: '50px'}}>User Not Found</h1></div>;
+
+    // Helper for styled text links
+    const getLinkStyle = (isClickable) => ({
+        color: isClickable ? '#FF4500' : '#555',
+        cursor: isClickable ? 'pointer' : 'not-allowed',
+        textDecoration: isClickable ? 'underline' : 'none',
+        fontSize: '1rem',
+        fontWeight: 'bold',
+        display: 'inline-block'
+    });
+
+    // 🌟 DYNAMIC HISTORY MODAL RENDERER
+    const renderHistoryModal = () => {
+        let data = [];
+        let title = "";
+        
+        if (activeModal === 'purchases') { data = purchaseHistory; title = "Purchase History"; }
+        else if (activeModal === 'borrows') { data = borrowHistory; title = "Borrow History"; }
+        else if (activeModal === 'selling') { data = sellingHistory; title = "Selling History"; }
+        else if (activeModal === 'wishlist') { data = wishlist; title = "My Wishlist"; }
+
+        return (
+            <div className="modal-overlay" onClick={() => setActiveModal(null)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                <div style={{ width: '600px', maxHeight: '80vh', backgroundColor: '#121212', border: '4px solid #ffffff', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', backgroundColor: '#ffffff', color: '#000000', borderBottom: '4px solid #000000' }}>
+                        <h2 style={{ margin: 0, textTransform: 'uppercase' }}>{title}</h2>
+                        <button onClick={() => setActiveModal(null)} style={{ background: 'transparent', border: 'none', color: '#000', fontSize: '2rem', cursor: 'pointer', lineHeight: '1' }}>&times;</button>
+                    </div>
+                    
+                    <div style={{ padding: '20px', overflowY: 'auto', flex: 1, color: 'white' }}>
+                        {data.length === 0 ? (
+                            <p style={{ color: '#aaa', textAlign: 'center', fontStyle: 'italic', marginTop: '20px' }}>No records found.</p>
+                        ) : (
+                            data.map((item, idx) => {
+                                // Extract status (handles both listings and transaction views)
+                                const status = item.item_status || item.status; 
+                                const isDeleted = status === 'deleted';
+                                const itemId = item.item_id;
+
+                                return (
+                                    <div key={idx} 
+                                        onClick={() => !isDeleted && navigate(`/item/${itemId}`)}
+                                        style={{
+                                            padding: '15px', border: '2px solid #444', marginBottom: '10px', backgroundColor: '#1a1a1a',
+                                            cursor: isDeleted ? 'not-allowed' : 'pointer', opacity: isDeleted ? 0.4 : 1, transition: 'border-color 0.2s',
+                                            display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                                        }}
+                                        onMouseEnter={(e) => !isDeleted && (e.currentTarget.style.borderColor = '#FF4500')}
+                                        onMouseLeave={(e) => !isDeleted && (e.currentTarget.style.borderColor = '#444')}
+                                    >
+                                        <div>
+                                            <div style={{ fontWeight: 'bold', color: '#fff', fontSize: '1.2rem', marginBottom: '5px' }}>
+                                                {item.title} {item.quantity ? `(x${item.quantity})` : ''}
+                                            </div>
+                                            <div style={{ color: '#aaa', fontSize: '0.95rem' }}>
+                                                {activeModal === 'purchases' || activeModal === 'borrows' ? `Date: ${new Date(item.transaction_date).toLocaleDateString()}` : `Status: ${status.toUpperCase()}`}
+                                            </div>
+                                        </div>
+                                        {isDeleted && <span style={{ color: '#f44336', fontWeight: 'bold', fontSize: '1rem', border: '1px solid #f44336', padding: '5px 10px' }}>DELETED</span>}
+                                    </div>
+                                )
+                            })
+                        )}
+                    </div>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className="profile-page-wrapper">
@@ -82,47 +178,39 @@ const ProfilePage = () => {
                     </div>
                 </div>
 
-                {/* 🌟 MIDDLE COLUMN */}
+                {/* 🌟 MIDDLE COLUMN (Interactive History Links) */}
                 <div className="profile-mid-col">
                     <div className="history-container" style={{ border: '1px solid #555', borderRadius: '8px', backgroundColor: '#222', padding: '25px', marginTop: '12px' }}>
                         
-                        <div style={{ borderBottom: '1px solid #444', paddingBottom: '15px', marginBottom: '20px', opacity: isOwnProfile ? 1 : 0.5 }}>
-                            <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', color: '#ffff', textTransform: 'uppercase' }}>Purchase History</h4>
-                            {isOwnProfile ? (
-                                <p style={{ margin: 0, color: '#888', fontSize: '1rem' }}>Coming Soon</p>
-                            ) : (
-                                <p style={{ margin: 0, color: '#888', fontSize: '1rem', fontStyle: 'italic' }}>
-                                    (You can only view your own buying history)
-                                </p>
-                            )}
+                        <div style={{ borderBottom: '1px solid #444', paddingBottom: '15px', marginBottom: '20px' }}>
+                            <h4 style={{ margin: '0 0 5px 0', fontSize: '1.1rem', color: '#ffff', textTransform: 'uppercase' }}>Purchase History</h4>
+                            <span style={getLinkStyle(isOwnProfile)} onClick={() => isOwnProfile && setActiveModal('purchases')}>
+                                {isOwnProfile ? 'View Purchase History' : 'Private History'}
+                            </span>
                         </div>
 
-                        <div style={{ borderBottom: '1px solid #444', paddingBottom: '15px', marginBottom: '20px', opacity: isOwnProfile ? 1 : 0.5 }}>
-                            <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', color: '#ffff', textTransform: 'uppercase' }}>Borrow History</h4>
-                            {isOwnProfile ? (
-                                <p style={{ margin: 0, color: '#888', fontSize: '1rem' }}>Coming Soon</p>
-                            ) : (
-                                <p style={{ margin: 0, color: '#888', fontSize: '1rem', fontStyle: 'italic' }}>
-                                    (You can only view your own borrowing history)
-                                </p>
-                            )}
+                        <div style={{ borderBottom: '1px solid #444', paddingBottom: '15px', marginBottom: '20px' }}>
+                            <h4 style={{ margin: '0 0 5px 0', fontSize: '1.1rem', color: '#ffff', textTransform: 'uppercase' }}>Borrow History</h4>
+                            <span style={getLinkStyle(isOwnProfile)} onClick={() => isOwnProfile && setActiveModal('borrows')}>
+                                {isOwnProfile ? 'View Borrow History' : 'Private History'}
+                            </span>
                         </div>
 
-                        <div style={{ borderBottom: isOwnProfile ? '1px solid #444' : 'none', paddingBottom: isOwnProfile ? '15px' : '0', marginBottom: isOwnProfile ? '20px' : '0' }}>
-                            <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', color: '#ffff', textTransform: 'uppercase' }}>Selling History</h4>
-                            <p style={{ margin: 0, color: '#FF4500', fontSize: '1rem', cursor: 'pointer', textDecoration: 'underline' }}>
+                        <div style={{ borderBottom: '1px solid #444', paddingBottom: '15px', marginBottom: '20px' }}>
+                            <h4 style={{ margin: '0 0 5px 0', fontSize: '1.1rem', color: '#ffff', textTransform: 'uppercase' }}>Selling History</h4>
+                            {/* Anyone can view someone else's public selling history! */}
+                            <span style={getLinkStyle(true)} onClick={() => setActiveModal('selling')}>
                                 View All Listings
-                            </p>
+                            </span>
                         </div>
 
-                        {isOwnProfile && (
-                            <div>
-                                <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', color: '#ffff', textTransform: 'uppercase' }}>My Wishlist</h4>
-                                <p style={{ margin: 0, color: '#FF4500', fontSize: '1rem', cursor: 'pointer', textDecoration: 'underline' }}>
-                                    View Saved Items
-                                </p>
-                            </div>
-                        )}
+                        <div>
+                            <h4 style={{ margin: '0 0 5px 0', fontSize: '1.1rem', color: '#ffff', textTransform: 'uppercase' }}>Wishlist</h4>
+                            <span style={getLinkStyle(isOwnProfile)} onClick={() => isOwnProfile && setActiveModal('wishlist')}>
+                                {isOwnProfile ? 'View Saved Items' : 'Private Wishlist'}
+                            </span>
+                        </div>
+
                     </div>
 
                     {isOwnProfile && (
@@ -132,45 +220,43 @@ const ProfilePage = () => {
                     )}
                 </div>
 
-                {/* 🌟 RIGHT COLUMN */}
+                {/* 🌟 RIGHT COLUMN (Dynamic Statistics) */}
                 <div className="profile-right-col" style={{ flex: 1 }}>
                     <div style={{ border: '1px solid #ffff', borderRadius: '8px', backgroundColor: '#1a1a1a', padding: '25px', marginTop: '12px' }}>
                         <h3 style={{ margin: '0 0 25px 0', fontSize: '1.4rem' }}>Statistics</h3>
                         
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
-                            
                             <div style={{ backgroundColor: 'white', color: 'black', height: '60px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', border: '2px solid #000' }}>
                                 <div style={{ display: 'flex', width: '180px', alignItems: 'center' }}>
                                     <span style={{ width: '35px', textAlign: 'center', marginRight: '15px', fontSize: '1.4rem' }}>🏷️</span>
-                                    <span>Sold: 20</span>
+                                    <span>Sold: {profileUser.total_sold}</span>
                                 </div>
                             </div>
-                            
                             <div style={{ backgroundColor: 'white', color: 'black', height: '60px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', border: '2px solid #000' }}>
                                 <div style={{ display: 'flex', width: '180px', alignItems: 'center' }}>
                                     <span style={{ width: '35px', textAlign: 'center', marginRight: '15px', fontSize: '1.4rem' }}>🧾</span>
-                                    <span>Bought: 50</span>
+                                    <span>Bought: {profileUser.total_bought}</span>
                                 </div>
                             </div>
-                            
                             <div style={{ backgroundColor: 'white', color: 'black', height: '60px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', border: '2px solid #000' }}>
-                                <div style={{ display: 'flex', width: '180px', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', width: '200px', alignItems: 'center' }}>
                                     <span style={{ width: '35px', textAlign: 'center', marginRight: '15px', fontSize: '1.4rem' }}>⭐</span>
-                                    <span>Rating: {profileUser.reliability_score || '5'}</span>
+                                    {profileUser.reliability_score ? (
+                                        <span>Rating: {Number(profileUser.reliability_score).toFixed(2)} / 5.00</span>
+                                    ) : (
+                                        <span style={{ fontStyle: 'italic', fontSize: '1rem', color: '#666' }}>No rating yet</span>
+                                    )}
                                 </div>
                             </div>
-                            
                             <div style={{ backgroundColor: 'white', color: 'black', height: '60px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', border: '2px solid #000' }}>
                                 <div style={{ display: 'flex', width: '180px', alignItems: 'center' }}>
                                     <span style={{ width: '35px', textAlign: 'center', marginRight: '15px', fontSize: '1.4rem' }}>🤝</span>
-                                    <span>Borrowed: 5</span>
+                                    <span>Borrowed: {profileUser.total_borrowed}</span>
                                 </div>
                             </div>
-
                         </div>
                     </div>
 
-                    {/* 🌟 RESTORED NOTIFICATIONS BLOCK */}
                     {isOwnProfile && currentUserId && (
                         <div style={{ marginTop: '20px' }}>
                             <NotificationCenter currentUserId={currentUserId} />
@@ -179,6 +265,10 @@ const ProfilePage = () => {
                 </div>
 
             </div>
+
+            {/* 🌟 MOUNT THE MODAL HERE */}
+            {activeModal && renderHistoryModal()}
+
         </div>
     );
 };

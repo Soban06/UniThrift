@@ -50,7 +50,7 @@ CREATE TABLE Categories
 );
 GO
 
--- 4. Items Table (🌟 UPDATED: Added 'sos_borrow' to listing_type)
+-- 4. Items Table
 CREATE TABLE Items
 (
     item_id INT IDENTITY(1,1) PRIMARY KEY,
@@ -143,7 +143,8 @@ CREATE TABLE Notifications (
     item_id INT NULL FOREIGN KEY REFERENCES Items(item_id),   
     transaction_id INT NULL FOREIGN KEY REFERENCES Transactions(transaction_id), 
     sos_id INT NULL FOREIGN KEY REFERENCES SOS_Requests(request_id), 
-    notification_type VARCHAR(50) NOT NULL CHECK (notification_type IN ('message', 'handshake_request', 'handshake_accepted', 'handshake_rejected', 'sos_alert')),
+    -- 🌟 FIXED: Added 'rating_request' right here!
+    notification_type VARCHAR(50) NOT NULL CHECK (notification_type IN ('message', 'handshake_request', 'handshake_accepted', 'handshake_rejected', 'sos_alert', 'rating_request')),
     message_text NVARCHAR(MAX) NOT NULL,
     is_read BIT DEFAULT 0,
     created_at DATETIME DEFAULT GETDATE()
@@ -166,7 +167,6 @@ GO
 -- 4. VIEWS
 -- =========================================================
 
--- 🌟 UPDATED: Hide 'sos_borrow' items from the public marketplace feed
 CREATE VIEW AvailableMarketplaceItems
 AS
     SELECT
@@ -188,7 +188,6 @@ GO
 -- 5. STORED PROCEDURES
 -- =========================================================
 
--- The Purchase Procedure 
 CREATE PROCEDURE sp_ProcessPurchase
     @ItemID INT,
     @BuyerID INT,
@@ -208,7 +207,6 @@ BEGIN
 
     IF (@CurrentStock >= @Qty)
     BEGIN
-        -- Insert as 'completed'. This immediately fires the Trigger below!
         INSERT INTO Transactions (item_id, buyer_id, seller_id, transaction_type, status, quantity)
         VALUES (@ItemID, @BuyerID, @SellerID, 'purchase', 'completed', @Qty);
         
@@ -222,7 +220,6 @@ BEGIN
 END;
 GO
 
--- Update Reliability Score Procedure
 CREATE PROCEDURE sp_UpdateReliability
     @UserID INT
 AS
@@ -237,7 +234,6 @@ BEGIN
 END;
 GO
 
--- Handshake Initiation (Borrow Request)
 CREATE PROCEDURE sp_InitiateBorrowHandshake
     @ItemID INT,
     @BuyerID INT,
@@ -253,22 +249,18 @@ BEGIN
 
     IF (@CurrentStock >= @Qty)
     BEGIN
-        -- 1. Create Pending Transaction
         DECLARE @NewTxID INT;
         INSERT INTO Transactions (item_id, buyer_id, seller_id, transaction_type, status, quantity)
         VALUES (@ItemID, @BuyerID, @SellerID, 'borrow', 'pending', @Qty);
         SET @NewTxID = SCOPE_IDENTITY();
 
-        -- 2. Temporarily hold the stock (so others can't grab it while waiting)
         UPDATE Items 
         SET stock_quantity = stock_quantity - @Qty 
         WHERE item_id = @ItemID;
 
-        -- 3. Notify the Lender (Seller)
         INSERT INTO Notifications (user_id, sender_id, item_id, transaction_id, notification_type, message_text)
         VALUES (@SellerID, @BuyerID, @ItemID, @NewTxID, 'handshake_request', 'New borrow request pending your approval.');
 
-        -- 4. Notify the Borrower (Buyer)
         INSERT INTO Notifications (user_id, sender_id, item_id, transaction_id, notification_type, message_text)
         VALUES (@BuyerID, @SellerID, @ItemID, @NewTxID, 'handshake_request', 'Waiting for lender to approve your borrow request.');
 
@@ -282,90 +274,7 @@ BEGIN
 END;
 GO
 
--- Handshake Resolution (Accept/Reject)
 CREATE PROCEDURE sp_ResolveHandshake
-    @TransactionID INT,
-    @ResolvingUserID INT, 
-    @Action VARCHAR(10)   
-AS
-BEGIN
-    SET NOCOUNT ON;
-    BEGIN TRANSACTION;
-
-    DECLARE @ItemID INT, @BuyerID INT, @SellerID INT, @Qty INT, @CurrentStatus VARCHAR(20);
-    
-    SELECT @ItemID = item_id, @BuyerID = buyer_id, @SellerID = seller_id, @Qty = quantity, @CurrentStatus = status
-    FROM Transactions WHERE transaction_id = @TransactionID;
-
-    IF (@CurrentStatus <> 'pending')
-    BEGIN
-        ROLLBACK;
-        THROW 50002, 'This transaction is no longer pending.', 1;
-    END
-
-    IF (@Action = 'reject')
-    BEGIN
-        -- Return stock, mark cancelled, notify both
-        UPDATE Transactions SET status = 'cancelled' WHERE transaction_id = @TransactionID;
-        UPDATE Items SET stock_quantity = stock_quantity + @Qty WHERE item_id = @ItemID;
-        
-        -- Delete the pending handshake notifications
-        DELETE FROM Notifications WHERE transaction_id = @TransactionID AND notification_type = 'handshake_request';
-
-        INSERT INTO Notifications (user_id, item_id, transaction_id, notification_type, message_text)
-        VALUES (@BuyerID, @ItemID, @TransactionID, 'handshake_rejected', 'Your borrow request was rejected.');
-    END
-    ELSE IF (@Action = 'accept')
-    BEGIN
-        IF (@ResolvingUserID <> @SellerID)
-        BEGIN
-            ROLLBACK;
-            THROW 50003, 'Only the lender can finalize the handshake in this phase.', 1;
-        END
-
-        UPDATE Transactions SET status = 'completed' WHERE transaction_id = @TransactionID;
-        
-        -- Stock was already deducted during initiation, just clear the pending notifications
-        DELETE FROM Notifications WHERE transaction_id = @TransactionID AND notification_type = 'handshake_request';
-    END
-
-    COMMIT;
-END;
-GO
-
--- =========================================================
--- 6. THE NODE-SAFE TRIGGER
--- =========================================================
-
-CREATE TRIGGER trg_UpdateItemStatus
-ON Transactions
-AFTER INSERT, UPDATE
-AS
-BEGIN
-    -- 🌟 Prevents the hidden messages that crash Node.js
-    SET NOCOUNT ON; 
-
-    IF EXISTS (SELECT 1 FROM inserted WHERE status = 'completed' AND transaction_type = 'purchase')
-    BEGIN
-        UPDATE Items
-        SET stock_quantity = Items.stock_quantity - ins.quantity,
-            status = CASE 
-                        WHEN (Items.stock_quantity - ins.quantity) <= 0 THEN 'sold' 
-                        ELSE Items.status 
-                     END
-        FROM Items
-        JOIN inserted ins ON Items.item_id = ins.item_id
-        
-        -- 🌟 Ensures this only fires on NEW completed transactions, avoiding double-deductions
-        LEFT JOIN deleted del ON ins.transaction_id = del.transaction_id
-        WHERE ins.transaction_type = 'purchase'
-          AND ins.status = 'completed'
-          AND (del.status IS NULL OR del.status <> 'completed');
-    END
-END;
-GO
-
-ALTER PROCEDURE sp_ResolveHandshake
     @TransactionID INT,
     @ResolvingUserID INT, 
     @Action VARCHAR(10)   
@@ -376,7 +285,6 @@ BEGIN
 
     DECLARE @ItemID INT, @BuyerID INT, @SellerID INT, @Qty INT, @CurrentStatus VARCHAR(20), @ListingType VARCHAR(20);
     
-    -- Grab transaction info AND the listing type of the item
     SELECT 
         @ItemID = t.item_id, 
         @BuyerID = t.buyer_id, 
@@ -394,7 +302,6 @@ BEGIN
         THROW 50002, 'This transaction is no longer pending.', 1;
     END
 
-    -- 🌟 NEW: Dynamic permission check based on Listing Type
     IF (@ListingType = 'sos_borrow' AND @ResolvingUserID <> @BuyerID)
     BEGIN
         ROLLBACK;
@@ -413,7 +320,6 @@ BEGIN
         
         DELETE FROM Notifications WHERE transaction_id = @TransactionID AND notification_type = 'handshake_request';
 
-        -- Notify the OTHER party (whether it was the buyer or seller who cancelled)
         DECLARE @NotifyUser INT = CASE WHEN @ResolvingUserID = @BuyerID THEN @SellerID ELSE @BuyerID END;
         
         INSERT INTO Notifications (user_id, item_id, transaction_id, notification_type, message_text)
@@ -426,5 +332,34 @@ BEGIN
     END
 
     COMMIT;
+END;
+GO
+
+-- =========================================================
+-- 6. THE NODE-SAFE TRIGGER
+-- =========================================================
+
+CREATE TRIGGER trg_UpdateItemStatus
+ON Transactions
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON; 
+
+    IF EXISTS (SELECT 1 FROM inserted WHERE status = 'completed' AND transaction_type = 'purchase')
+    BEGIN
+        UPDATE Items
+        SET stock_quantity = Items.stock_quantity - ins.quantity,
+            status = CASE 
+                        WHEN (Items.stock_quantity - ins.quantity) <= 0 THEN 'sold' 
+                        ELSE Items.status 
+                     END
+        FROM Items
+        JOIN inserted ins ON Items.item_id = ins.item_id
+        LEFT JOIN deleted del ON ins.transaction_id = del.transaction_id
+        WHERE ins.transaction_type = 'purchase'
+          AND ins.status = 'completed'
+          AND (del.status IS NULL OR del.status <> 'completed');
+    END
 END;
 GO

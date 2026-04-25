@@ -9,7 +9,11 @@ const NotificationCenter = ({ currentUserId }) => {
     const [groupedMessages, setGroupedMessages] = useState([]);
     const [handshakes, setHandshakes] = useState([]);
     const [sosAlerts, setSosAlerts] = useState([]);
-    const [myActiveSos, setMyActiveSos] = useState([]); // 🌟 New state for the Creator's Control Panel
+    const [myActiveSos, setMyActiveSos] = useState([]); 
+    
+    // 🌟 NEW STATES FOR RATINGS
+    const [ratingRequests, setRatingRequests] = useState([]);
+    const [selectedRatings, setSelectedRatings] = useState({}); // Tracks { transactionId: score }
 
     const fetchNotifications = useCallback(async () => {
         if (!currentUserId) return;
@@ -23,9 +27,11 @@ const NotificationCenter = ({ currentUserId }) => {
 
             setHandshakes(data.filter(n => n.notification_type === 'handshake_request'));
             
-            // 🌟 Separate the user's OWN S.O.S notifications from the community alerts
             setMyActiveSos(data.filter(n => n.notification_type === 'sos_alert' && n.user_id === n.sender_id));
             setSosAlerts(data.filter(n => n.notification_type === 'sos_alert' && n.user_id !== n.sender_id));
+
+            // 🌟 Capture rating requests
+            setRatingRequests(data.filter(n => n.notification_type === 'rating_request'));
 
             const msgs = data.filter(n => n.notification_type === 'message' || n.notification_type.includes('rejected'));
             const grouped = msgs.reduce((acc, curr) => {
@@ -77,7 +83,6 @@ const NotificationCenter = ({ currentUserId }) => {
         }
     };
 
-    // 🌟 NEW: Hit the delete route to cancel the SOS from the Notification Center
     const handleTakeDownSos = async (sosId) => {
         const confirm = window.confirm("Are you sure you want to take down this S.O.S request?");
         if (!confirm) return;
@@ -94,7 +99,27 @@ const NotificationCenter = ({ currentUserId }) => {
         }
     };
 
-    const totalPending = handshakes.length + groupedMessages.length + sosAlerts.length + myActiveSos.length;
+    // 🌟 NEW: Submit Rating Function
+    const handleSubmitRating = async (transactionId) => {
+        const score = selectedRatings[transactionId];
+        if (!score) return alert("Please select a star rating first!");
+
+        try {
+            const token = sessionStorage.getItem('token');
+            await axios.post('http://localhost:5000/api/ratings', {
+                transactionId,
+                score
+            }, { headers: { Authorization: `Bearer ${token}` } });
+            
+            fetchNotifications(); // Refresh list to remove the rating notification
+        } catch (error) {
+            console.error("Failed to submit rating", error);
+            alert("Error submitting rating.");
+        }
+    };
+
+    // Include rating requests in the red pending badge
+    const totalPending = handshakes.length + groupedMessages.length + sosAlerts.length + myActiveSos.length + ratingRequests.length;
 
     return (
         <>
@@ -115,7 +140,43 @@ const NotificationCenter = ({ currentUserId }) => {
                         <div style={{ padding: '20px', overflowY: 'auto', flex: 1, color: 'white' }}>
                             {totalPending === 0 && <p style={{ textAlign: 'center', color: '#888', fontStyle: 'italic', marginTop: '40px' }}>No pending notifications.</p>}
 
-                            {/* 🌟 MY ACTIVE S.O.S (Control Panel) */}
+                            {/* 🌟 RATINGS TABLE (Displays pending reviews) */}
+                            {ratingRequests.length > 0 && (
+                                <div style={{ marginBottom: '30px' }}>
+                                    <h3 style={{ borderBottom: '2px solid #555', paddingBottom: '10px', color: '#FFD700' }}>PENDING REVIEWS</h3>
+                                    {ratingRequests.map(r => (
+                                        <div key={r.notification_id} style={{ padding: '20px', border: '2px solid #FFD700', marginBottom: '10px', backgroundColor: '#1a1a1a', textAlign: 'center' }}>
+                                            <div style={{ fontWeight: 'bold', fontSize: '1.2rem', color: '#fff', marginBottom: '5px' }}>Rate: {r.item_name}</div>
+                                            <div style={{ color: '#aaa', fontStyle: 'italic', marginBottom: '15px' }}>Seller: {r.sender_name}</div>
+                                            
+                                            {/* Interactive Stars */}
+                                            <div style={{ fontSize: '3rem', cursor: 'pointer', display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '20px' }}>
+                                                {[1, 2, 3, 4, 5].map(star => {
+                                                    const currentScore = selectedRatings[r.transaction_id] || 0;
+                                                    return (
+                                                        <span 
+                                                            key={star}
+                                                            onClick={() => setSelectedRatings({ ...selectedRatings, [r.transaction_id]: star })}
+                                                            style={{ color: star <= currentScore ? '#FFD700' : '#444', transition: 'color 0.2s', userSelect: 'none' }}
+                                                        >
+                                                            ★
+                                                        </span>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            <button 
+                                                onClick={() => handleSubmitRating(r.transaction_id)}
+                                                style={{ padding: '12px 30px', backgroundColor: '#FFD700', color: '#000', border: 'none', fontWeight: 'bold', cursor: 'pointer', borderRadius: '4px', fontSize: '1.1rem' }}
+                                            >
+                                                SUBMIT RATING
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* MY ACTIVE S.O.S (Control Panel) */}
                             {myActiveSos.length > 0 && (
                                 <div style={{ marginBottom: '30px' }}>
                                     <h3 style={{ borderBottom: '2px solid #555', paddingBottom: '10px', color: '#FFD700' }}>MY ACTIVE S.O.S</h3>

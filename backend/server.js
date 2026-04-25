@@ -174,6 +174,7 @@ sql.connect(dbConfig)
             }
         });
 
+        // 🌟 SOFT DELETE IMPLEMENTATION
         app.delete('/api/items/:itemId', authenticateToken, async (req, res) => {
             try {
                 const { itemId } = req.params;
@@ -181,7 +182,8 @@ sql.connect(dbConfig)
                 const checkOwnership = await pool.request().input('itemId', sql.Int, itemId).input('userId', sql.Int, userId).query('SELECT * FROM Items WHERE item_id = @itemId AND seller_id = @userId');
                 if (checkOwnership.recordset.length === 0) return res.status(403).json({ message: "Unauthorized." });
 
-                await pool.request().input('itemId', sql.Int, itemId).query('DELETE FROM Items WHERE item_id = @itemId');
+                // Updates status instead of completely dropping the row so history isn't broken
+                await pool.request().input('itemId', sql.Int, itemId).query("UPDATE Items SET status = 'deleted' WHERE item_id = @itemId");
                 res.json({ message: "Item deleted successfully!" });
             } catch (err) {
                 res.status(500).send("Server Error");
@@ -199,10 +201,26 @@ sql.connect(dbConfig)
 
         app.get('/api/items/:itemId', async (req, res) => {
             try {
-                const result = await pool.request().input('itemId', sql.Int, req.params.itemId).query(`SELECT i.*, u.full_name as seller_name, d.department_name as dept_name, c.category_name, (SELECT COUNT(*) FROM Wishlist WHERE item_id = @itemId) as wishlist_count, ISNULL((SELECT SUM(quantity) FROM Transactions WHERE seller_id = i.seller_id AND status = 'completed' AND transaction_type = 'purchase'), 0) as seller_sold_count FROM Items i JOIN Users u ON i.seller_id = u.user_id JOIN Departments d ON i.department_id = d.department_id JOIN Categories c ON i.category_id = c.category_id WHERE i.item_id = @itemId`);
+                const result = await pool.request().input('itemId', sql.Int, req.params.itemId).query(`
+                    SELECT i.*, 
+                           u.full_name as seller_name, 
+                           u.reliability_score as seller_rating, 
+                           d.department_name as dept_name, 
+                           c.category_name, 
+                           (SELECT COUNT(*) FROM Wishlist WHERE item_id = @itemId) as wishlist_count, 
+                           ISNULL((SELECT SUM(quantity) FROM Transactions WHERE seller_id = i.seller_id AND status = 'completed' AND transaction_type = 'purchase'), 0) as seller_sold_count,
+                           (SELECT ISNULL(AVG(CAST(r.score AS FLOAT)), 0) FROM Ratings r JOIN Transactions t ON r.transaction_id = t.transaction_id WHERE t.item_id = @itemId) as item_rating
+                    FROM Items i 
+                    JOIN Users u ON i.seller_id = u.user_id 
+                    JOIN Departments d ON i.department_id = d.department_id 
+                    JOIN Categories c ON i.category_id = c.category_id 
+                    WHERE i.item_id = @itemId
+                `);
+                
                 if (result.recordset.length > 0) res.json(result.recordset[0]);
                 else res.status(404).json({ message: "Item not found" });
             } catch (err) {
+                console.error(err);
                 res.status(500).send("Server Error");
             }
         });
@@ -212,9 +230,34 @@ sql.connect(dbConfig)
         // ====================================================================
         app.post('/api/transactions/purchase', authenticateToken, async (req, res) => {
             try {
-                await pool.request().input('ItemID', sql.Int, req.body.itemId).input('BuyerID', sql.Int, req.body.buyerId).input('SellerID', sql.Int, req.body.sellerId).input('Qty', sql.Int, req.body.qty).execute('sp_ProcessPurchase');
+                await pool.request()
+                    .input('ItemID', sql.Int, req.body.itemId)
+                    .input('BuyerID', sql.Int, req.body.buyerId)
+                    .input('SellerID', sql.Int, req.body.sellerId)
+                    .input('Qty', sql.Int, req.body.qty)
+                    .execute('sp_ProcessPurchase');
+
+                const txRes = await pool.request()
+                    .input('buyer', sql.Int, req.body.buyerId)
+                    .input('item', sql.Int, req.body.itemId)
+                    .query('SELECT TOP 1 transaction_id FROM Transactions WHERE buyer_id = @buyer AND item_id = @item ORDER BY transaction_id DESC');
+                
+                if (txRes.recordset.length > 0) {
+                    const txId = txRes.recordset[0].transaction_id;
+                    await pool.request()
+                        .input('buyer', sql.Int, req.body.buyerId)
+                        .input('seller', sql.Int, req.body.sellerId)
+                        .input('item', sql.Int, req.body.itemId)
+                        .input('tx', sql.Int, txId)
+                        .query(`
+                            INSERT INTO Notifications (user_id, sender_id, item_id, transaction_id, notification_type, message_text) 
+                            VALUES (@buyer, @seller, @item, @tx, 'rating_request', 'Transaction complete! Please rate the item and seller.');
+                        `);
+                }
+
                 res.status(200).json({ message: 'Transaction successful!' });
             } catch (err) {
+                console.error("Purchase Error:", err);
                 res.status(500).json({ error: 'Transaction Failed.' });
             }
         });
@@ -268,17 +311,32 @@ sql.connect(dbConfig)
         });
 
         app.post('/api/ratings', authenticateToken, async (req, res) => {
+            const { transactionId, score, reviewText } = req.body;
             try {
-                await pool.request().input('reviewer', sql.Int, req.body.reviewerId).input('reviewee', sql.Int, req.body.revieweeId).input('transId', sql.Int, req.body.transactionId).input('score', sql.Int, req.body.score).input('text', sql.VarChar, req.body.reviewText || '').query(`INSERT INTO Ratings (reviewer_id, reviewee_id, transaction_id, score, review_text) VALUES (@reviewer, @reviewee, @transId, @score, @text)`);
-                await pool.request().input('UserID', sql.Int, req.body.revieweeId).execute('sp_UpdateReliability');
+                const txData = await pool.request().input('txId', sql.Int, transactionId).query("SELECT buyer_id, seller_id, item_id FROM Transactions WHERE transaction_id = @txId");
+                if (txData.recordset.length === 0) return res.status(404).json({ error: "Transaction not found." });
+                const { buyer_id, seller_id, item_id } = txData.recordset[0];
+
+                await pool.request()
+                    .input('reviewer', sql.Int, buyer_id).input('reviewee', sql.Int, seller_id).input('item', sql.Int, item_id).input('transId', sql.Int, transactionId).input('score', sql.Int, score).input('text', sql.VarChar, reviewText || '')
+                    .query(`INSERT INTO Ratings (reviewer_id, reviewee_id, transaction_id, score, review_text) VALUES (@reviewer, @reviewee, @transId, @score, @text)`);
+
+                await pool.request().input('sellerId', sql.Int, seller_id).query(`
+                        UPDATE Users 
+                        SET reliability_score = (SELECT ISNULL(AVG(CAST(score AS FLOAT)), 5.0) FROM Ratings WHERE reviewee_id = @sellerId)
+                        WHERE user_id = @sellerId;
+                    `);
+
+                await pool.request().input('txId', sql.Int, transactionId).query("DELETE FROM Notifications WHERE transaction_id = @txId AND notification_type = 'rating_request'");
                 res.status(200).json({ message: "Rating submitted!" });
             } catch (err) {
+                console.error("Rating error:", err);
                 res.status(500).json({ error: "Failed to submit rating." });
             }
         });
 
         // ============================================================================
-        // 📊 USER UTILITIES
+        // 📊 USER UTILITIES (STATS & HISTORIES)
         // ============================================================================
         app.post('/api/wishlist/toggle', authenticateToken, async (req, res) => {
             try {
@@ -304,9 +362,17 @@ sql.connect(dbConfig)
             }
         });
 
+        // 🌟 CALCULATE PUBLIC PROFILE STATS
         app.get('/api/users/:id/public', async (req, res) => {
             try {
-                const result = await pool.request().input('userId', sql.Int, req.params.id).query(`SELECT user_id, full_name, profile_pic_url, reliability_score, created_at, user_description FROM Users WHERE user_id = @userId`);
+                const result = await pool.request().input('userId', sql.Int, req.params.id).query(`
+                    SELECT 
+                        u.user_id, u.full_name, u.profile_pic_url, u.reliability_score, u.created_at, u.user_description,
+                        ISNULL((SELECT SUM(quantity) FROM Transactions WHERE seller_id = @userId AND status = 'completed' AND transaction_type = 'purchase'), 0) AS total_sold,
+                        ISNULL((SELECT SUM(quantity) FROM Transactions WHERE buyer_id = @userId AND status = 'completed' AND transaction_type = 'purchase'), 0) AS total_bought,
+                        ISNULL((SELECT SUM(quantity) FROM Transactions WHERE buyer_id = @userId AND status IN ('completed', 'pending') AND transaction_type = 'borrow'), 0) AS total_borrowed
+                    FROM Users u WHERE user_id = @userId
+                `);
                 if (result.recordset.length === 0) return res.status(404).json({ error: "User not found" });
                 res.json(result.recordset[0]);
             } catch (err) {
@@ -314,21 +380,43 @@ sql.connect(dbConfig)
             }
         });
 
+        // 🌟 FETCH LISTINGS
         app.get('/api/users/:id/listings', async (req, res) => {
             try {
-                const result = await pool.request().input('userId', sql.Int, req.params.id).query(`SELECT item_id, title, price, listing_type, status FROM Items WHERE seller_id = @userId AND listing_type != 'sos_borrow' ORDER BY created_at DESC`);
+                const result = await pool.request().input('userId', sql.Int, req.params.id).query(`SELECT item_id, title, price, listing_type, status AS item_status FROM Items WHERE seller_id = @userId AND listing_type != 'sos_borrow' ORDER BY created_at DESC`);
                 res.json(result.recordset);
             } catch (err) {
                 res.status(500).json({ error: err.message });
             }
         });
 
-        app.get('/api/users/:userId/history', async (req, res) => {
+        // 🌟 FETCH PURCHASE HISTORY
+        app.get('/api/users/:id/purchases', authenticateToken, async (req, res) => {
             try {
-                const result = await pool.request().input('userId', sql.Int, req.params.userId).query(`SELECT item_id, title, status, created_at FROM Items WHERE seller_id = @userId ORDER BY created_at DESC`);
-                res.status(200).json(result.recordset);
+                const result = await pool.request().input('userId', sql.Int, req.params.id).query(`
+                    SELECT t.transaction_id, i.item_id, i.title, t.quantity, t.transaction_date, t.status AS tx_status, i.status AS item_status 
+                    FROM Transactions t JOIN Items i ON t.item_id = i.item_id 
+                    WHERE t.buyer_id = @userId AND t.transaction_type = 'purchase' 
+                    ORDER BY t.transaction_date DESC
+                `);
+                res.json(result.recordset);
             } catch (err) {
-                res.status(500).json({ error: "Failed to fetch history." });
+                res.status(500).json({ error: err.message });
+            }
+        });
+
+        // 🌟 FETCH BORROW HISTORY
+        app.get('/api/users/:id/borrows', authenticateToken, async (req, res) => {
+            try {
+                const result = await pool.request().input('userId', sql.Int, req.params.id).query(`
+                    SELECT t.transaction_id, i.item_id, i.title, t.quantity, t.transaction_date, t.status AS tx_status, i.status AS item_status 
+                    FROM Transactions t JOIN Items i ON t.item_id = i.item_id 
+                    WHERE t.buyer_id = @userId AND t.transaction_type = 'borrow' 
+                    ORDER BY t.transaction_date DESC
+                `);
+                res.json(result.recordset);
+            } catch (err) {
+                res.status(500).json({ error: err.message });
             }
         });
 
@@ -353,11 +441,10 @@ sql.connect(dbConfig)
             }
         });
 
-    app.put('/api/notifications/:userId/read-dms', authenticateToken, async (req, res) => {
+        app.put('/api/notifications/:userId/read-dms', authenticateToken, async (req, res) => {
             try {
                 await pool.request()
                     .input('userId', sql.Int, req.params.userId)
-                    // 🌟 FIX: Now clears both DMs and Rejection Alerts!
                     .query(`UPDATE Notifications SET is_read = 1 WHERE user_id = @userId AND notification_type IN ('message', 'handshake_rejected')`);
                 res.json({ message: "Alerts marked as read" });
             } catch (err) {
@@ -383,6 +470,16 @@ sql.connect(dbConfig)
                     .input('Action', sql.VarChar(10), action)
                     .execute('sp_ResolveHandshake');
                 
+                if (action === 'accept') {
+                    const txResult = await pool.request().input('txId', sql.Int, transactionId).query("SELECT buyer_id, seller_id, item_id FROM Transactions WHERE transaction_id = @txId");
+                    if (txResult.recordset.length > 0) {
+                        const { buyer_id, seller_id, item_id } = txResult.recordset[0];
+                        await pool.request()
+                            .input('buyer', sql.Int, buyer_id).input('seller', sql.Int, seller_id).input('item', sql.Int, item_id).input('tx', sql.Int, transactionId)
+                            .query(`INSERT INTO Notifications (user_id, sender_id, item_id, transaction_id, notification_type, message_text) VALUES (@buyer, @seller, @item, @tx, 'rating_request', 'Transaction complete! Please rate your experience.');`);
+                    }
+                }
+
                 if (action === 'accept' && sosId) {
                     await pool.request().input('sosId', sql.Int, sosId).query("UPDATE SOS_Requests SET status = 'fulfilled' WHERE request_id = @sosId");
 
