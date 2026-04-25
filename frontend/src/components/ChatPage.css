@@ -1,0 +1,237 @@
+.chat-page-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background-color: #0b0c10; /* Deep black background */
+    color: white;
+    font-family: 'Arial', sans-serif;
+    overflow: hidden;
+}
+
+.chat-loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    font-size: 2rem;
+    color: #ffffff;
+}
+
+.chat-layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    padding: 25px 40px 40px 40px; /* Nice floating gaps */
+    gap: 30px; 
+    border-top: 4px solid #ffffff; 
+}
+
+/* --- SIDEBAR --- */
+.chat-sidebar {
+    width: 320px;
+    background-color: #121212; 
+    border: 6px solid #000000; /* 🌟 Heavy inner black frame */
+    outline: 4px solid #ffffff; /* 🌟 Outer white frame */
+    border-radius: 0; 
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden; 
+}
+
+.sidebar-title {
+    padding: 20px;
+    margin: 0;
+    background-color: #ffffff; /* White background */
+    color: #000000; /* Black text */
+    border-bottom: 6px solid #000000; /* 🌟 Heavy black divider */
+    font-size: 1.1rem;
+    text-align: center;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.contact-list {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.contact-card {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    border-bottom: 2px solid #333;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.contact-card:hover {
+    background-color: #1e1e1e;
+}
+
+.contact-card.active {
+    background-color: #222222; 
+    border-left: 8px solid #ffffff; 
+}
+
+.contact-card.active .contact-name {
+    color: #ffffff;
+}
+
+.contact-avatar {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-right: 15px;
+    border: 2px solid #ffffff;
+}
+
+.contact-info {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.contact-name {
+    font-weight: bold;
+    font-size: 1.05rem;
+    margin-bottom: 4px;
+    color: #dddddd;
+}
+
+.contact-last-msg {
+    font-size: 0.85rem;
+    color: #888888;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.no-contacts {
+    text-align: center;
+    padding: 20px;
+    color: #777;
+    font-weight: bold;
+}
+
+/* --- MAIN CHAT AREA --- */
+.chat-main-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: transparent; 
+}
+
+.no-chat-selected {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #121212;
+    border: 6px solid #000000; 
+    outline: 4px solid #ffffff;
+    color: #aaaaaa;
+    font-weight: bold;
+    font-size: 1.2rem;
+}
+
+.mockup-chat-box {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    background-color: #121212; 
+    border: 6px solid #000000; /* 🌟 Heavy inner black frame */
+    outline: 4px solid #ffffff; /* 🌟 Outer white frame */
+    border-radius: 0; 
+    overflow: hidden;
+}
+
+/* 🌟 EXACTLY LIKE THE PICTURE: White Box, Heavy Black Divider */
+.mockup-header-row {
+    display: flex;
+    border-bottom: 6px solid #000000; /* 🌟 Restored 6px thickness */
+    background-color: #ffffff; 
+}
+
+.mockup-header-cell {
+    flex: 1;
+    padding: 15px 20px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #000000; 
+}
+
+.mockup-header-cell.left {
+    border-right: 6px solid #000000; /* 🌟 Restored 6px thickness */
+}
+
+/* Messages Area - Dark to match the theme */
+.mockup-message-display {
+    flex: 1;
+    padding: 25px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    background-color: #121212; 
+}
+
+.empty-chat-msg {
+    color: #888;
+    font-style: italic;
+    text-align: center;
+    margin-top: auto;
+    margin-bottom: auto;
+    font-weight: bold;
+}
+
+.message-line {
+    font-size: 1.1rem;
+    color: #ffffff; 
+    line-height: 1.5;
+}
+
+.message-sender-name {
+    font-weight: bold;
+    margin-right: 8px;
+    color: #aaaaaa; 
+}
+
+/* 🌟 EXACTLY LIKE THE PICTURE: Input Row */
+.mockup-input-row {
+    display: flex;
+    border-top: 6px solid #000000; /* 🌟 Restored 6px thickness */
+    background-color: #ffffff; 
+}
+
+.mockup-input-field {
+    flex: 1;
+    padding: 20px;
+    font-size: 1.2rem;
+    background: transparent;
+    border: none;
+    color: #000000; 
+    outline: none;
+    font-weight: bold;
+}
+
+.mockup-input-field::placeholder {
+    color: #555;
+}
+
+.mockup-send-btn {
+    background-color: #222222; 
+    color: white;
+    border: none;
+    border-left: 6px solid #000000; /* 🌟 Restored 6px thickness */
+    padding: 0 40px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.mockup-send-btn:hover {
+    background-color: #444444; 
+}

@@ -1,112 +1,62 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
-import './ProfilePage.css';
+import NotificationCenter from './NotificationCenter'; // 🌟 Restored the import!
+import './ProfilePage.css'; 
 
 const ProfilePage = () => {
     const navigate = useNavigate();
-    const [user, setUser] = useState(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const { userId: urlUserId } = useParams(); 
 
-    const [formData, setFormData] = useState({ name: '', bio: '', department: 'Computer Science', password: '' });
-    const [error, setError] = useState("");
-
-    // --- SELLING HISTORY STATE ---
-    const [showHistoryModal, setShowHistoryModal] = useState(false);
-    const [sellingHistory, setSellingHistory] = useState([]);
-    const [historyLoading, setHistoryLoading] = useState(false);
-
-    // --- WISHLIST STATE ---
-    const [showWishlistModal, setShowWishlistModal] = useState(false);
-    const [wishlistItems, setWishlistItems] = useState([]);
-    const [wishlistLoading, setWishlistLoading] = useState(false);
-
-    const deptMapping = {
-        "Computer Science": 1,
-        "Software Engineering": 2,
-        "Data Science": 3,
-        "Electrical Engineering": 4
-    };
+    const [profileUser, setProfileUser] = useState(null);
+    const [isOwnProfile, setIsOwnProfile] = useState(true);
+    const [currentUserId, setCurrentUserId] = useState(null); // 🌟 Restored currentUserId state
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const storedUser = sessionStorage.getItem('user');
-        if (storedUser) {
-            const parsedUser = JSON.parse(storedUser);
-            setUser(parsedUser);
-            setFormData({
-                name: parsedUser.name || parsedUser.full_name || "",
-                bio: parsedUser.bio || parsedUser.user_description || "",
-                department: parsedUser.department || "Computer Science",
-                password: ""
-            });
-        }
-    }, []);
+        const fetchProfileData = async () => {
+            try {
+                const storedUserStr = sessionStorage.getItem('user');
+                let loggedInUserId = null;
+                if (storedUserStr) {
+                    const storedUser = JSON.parse(storedUserStr);
+                    loggedInUserId = storedUser.id || storedUser.user_id;
+                    setCurrentUserId(loggedInUserId); // 🌟 Set it so we can pass it to Notifications
+                }
 
-    const handleSave = async () => {
-        setError("");
-        try {
-            const dataToSubmit = {
-                ...formData,
-                departmentId: deptMapping[formData.department]
-            };
+                const targetUserId = urlUserId || loggedInUserId;
 
-            const userId = user.id || user.user_id;
-            await axios.put(`http://localhost:5000/api/users/update/${userId}`, dataToSubmit);
+                if (!targetUserId) {
+                    navigate('/login');
+                    return;
+                }
 
-            const updatedUser = {
-                ...user,
-                name: formData.name,
-                bio: formData.bio,
-                department: formData.department
-            };
-            sessionStorage.setItem('user', JSON.stringify(updatedUser));
+                setIsOwnProfile(String(targetUserId) === String(loggedInUserId));
 
-            alert("Profile Synced Successfully.");
-            window.location.reload(); 
-        } catch (err) {
-            setError("System Error: Could not update profile.");
-        }
-    };
+                const userRes = await axios.get(`http://localhost:5000/api/users/${targetUserId}/public`);
+                setProfileUser(userRes.data);
 
-    // --- FETCH SELLING HISTORY ---
-    const handleOpenHistory = async () => {
-        setShowHistoryModal(true);
-        setHistoryLoading(true);
-        try {
-            const userId = user.id || user.user_id;
-            const response = await axios.get(`http://localhost:5000/api/users/${userId}/history`);
-            setSellingHistory(response.data);
-        } catch (error) {
-            console.error("Failed to load history", error);
-        } finally {
-            setHistoryLoading(false);
-        }
-    };
+            } catch (error) {
+                console.error("Error fetching profile", error);
+            } finally {
+                setLoading(false);
+            }
+        };
 
-    // --- FETCH WISHLIST ---
-    const handleOpenWishlist = async () => {
-        setShowWishlistModal(true);
-        setWishlistLoading(true);
-        try {
-            const userId = user.id || user.user_id;
-            const response = await axios.get(`http://localhost:5000/api/users/${userId}/wishlist`);
-            setWishlistItems(response.data);
-        } catch (error) {
-            console.error("Failed to load wishlist", error);
-        } finally {
-            setWishlistLoading(false);
-        }
-    };
+        fetchProfileData();
+    }, [urlUserId, navigate]);
 
-    const displayName = user?.name || user?.full_name;
-    const displayPic = user?.profilePic || user?.profile_pic_url || "https://via.placeholder.com/400/333332/white?text=No+Image";
-    const displayBio = (user?.bio || user?.user_description) ? (user.bio || user.user_description).split('\n') : [];
+    if (loading) return <div className="profile-page-wrapper"><h1 style={{color: 'white', textAlign: 'center', marginTop: '50px'}}>Loading...</h1></div>;
+    if (!profileUser) return <div className="profile-page-wrapper"><h1 style={{color: 'white', textAlign: 'center', marginTop: '50px'}}>User Not Found</h1></div>;
 
     return (
         <div className="profile-page-wrapper">
+            
             <header className="profile-header">
                 <div className="profile-banner">
-                    <div className="profile-banner-inner"><h1>USER-PAGE</h1></div>
+                    <div className="profile-banner-inner">
+                        <h1>USER-PAGE</h1>
+                    </div>
                 </div>
                 <div className="header-deco" />
                 <div className="back-ribbon" onClick={() => navigate('/')}>
@@ -118,172 +68,117 @@ const ProfilePage = () => {
                 
                 {/* LEFT COLUMN */}
                 <div className="profile-left-col">
-                    <h2 className="profile-username">{displayName}</h2>
-                    <div className="profile-pic-frame">
-                        <img src={displayPic} alt="Profile" />
+                    <h2 className="profile-username" style={{ fontSize: '2.2rem', margin: '0 0 15px 0', lineHeight: '1' }}>
+                        {profileUser.full_name || profileUser.name || 'User'}
+                    </h2>
+                    
+                    <div className="profile-pic-frame" style={{ backgroundColor: '#ccc', border: '2px solid #555', marginBottom: '20px', aspectRatio: '1/1' }}>
+                        <img src={profileUser.profile_pic_url || '/default-avatar.png'} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     </div>
-                    <div className="profile-description">
-                        <h3>Description</h3>
-                        <ul>
-                            {displayBio.map((line, i) => <li key={i}>{line}</li>)}
-                        </ul>
+                    
+                    <div className="profile-description" style={{ border: '1px solid #555', padding: '15px', backgroundColor: '#1a1a1a' }}>
+                        <h3 style={{ margin: '0 0 10px 0', fontSize: '1.1rem', textTransform: 'uppercase' }}>Description</h3>
+                        <p style={{ color: '#aaa', margin: 0, fontSize: '1rem' }}>{profileUser.user_description || 'No description provided.'}</p>
                     </div>
                 </div>
 
-                {/* MIDDLE COLUMN */}
+                {/* 🌟 MIDDLE COLUMN */}
                 <div className="profile-mid-col">
-                    <div className="history-container">
-                        <div className="history-box">
-                            <h4>PURCHASE HISTORY</h4>
-                            <span style={{ color: '#aaa' }}>Coming Soon</span>
-                        </div>
+                    <div className="history-container" style={{ border: '1px solid #555', borderRadius: '8px', backgroundColor: '#222', padding: '25px', marginTop: '12px' }}>
                         
-                        <div className="history-box">
-                            <h4>BORROW HISTORY</h4>
-                            <span style={{ color: '#aaa' }}>Coming Soon</span>
+                        <div style={{ borderBottom: '1px solid #444', paddingBottom: '15px', marginBottom: '20px', opacity: isOwnProfile ? 1 : 0.5 }}>
+                            <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', color: '#ffff', textTransform: 'uppercase' }}>Purchase History</h4>
+                            {isOwnProfile ? (
+                                <p style={{ margin: 0, color: '#888', fontSize: '1rem' }}>Coming Soon</p>
+                            ) : (
+                                <p style={{ margin: 0, color: '#888', fontSize: '1rem', fontStyle: 'italic' }}>
+                                    (You can only view your own buying history)
+                                </p>
+                            )}
                         </div>
 
-                        {/* SELLING HISTORY BOX */}
-                        <div className="history-box" onClick={handleOpenHistory} style={{ cursor: 'pointer', transition: '0.2s' }}>
-                            <h4>SELLING HISTORY</h4>
-                            <span style={{ color: '#FF4500', textDecoration: 'underline', fontWeight: 'bold' }}>
+                        <div style={{ borderBottom: '1px solid #444', paddingBottom: '15px', marginBottom: '20px', opacity: isOwnProfile ? 1 : 0.5 }}>
+                            <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', color: '#ffff', textTransform: 'uppercase' }}>Borrow History</h4>
+                            {isOwnProfile ? (
+                                <p style={{ margin: 0, color: '#888', fontSize: '1rem' }}>Coming Soon</p>
+                            ) : (
+                                <p style={{ margin: 0, color: '#888', fontSize: '1rem', fontStyle: 'italic' }}>
+                                    (You can only view your own borrowing history)
+                                </p>
+                            )}
+                        </div>
+
+                        <div style={{ borderBottom: isOwnProfile ? '1px solid #444' : 'none', paddingBottom: isOwnProfile ? '15px' : '0', marginBottom: isOwnProfile ? '20px' : '0' }}>
+                            <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', color: '#ffff', textTransform: 'uppercase' }}>Selling History</h4>
+                            <p style={{ margin: 0, color: '#FF4500', fontSize: '1rem', cursor: 'pointer', textDecoration: 'underline' }}>
                                 View All Listings
-                            </span>
+                            </p>
                         </div>
 
-                        {/*  NEW WISHLIST BOX  */}
-                        <div className="history-box" onClick={handleOpenWishlist} style={{ cursor: 'pointer', transition: '0.2s' }}>
-                            <h4>MY WISHLIST</h4>
-                            <span style={{ color: '#FF4500', textDecoration: 'underline', fontWeight: 'bold' }}>
-                                View Saved Items
-                            </span>
-                        </div>
+                        {isOwnProfile && (
+                            <div>
+                                <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', color: '#ffff', textTransform: 'uppercase' }}>My Wishlist</h4>
+                                <p style={{ margin: 0, color: '#FF4500', fontSize: '1rem', cursor: 'pointer', textDecoration: 'underline' }}>
+                                    View Saved Items
+                                </p>
+                            </div>
+                        )}
                     </div>
 
-                    <div className="edit-trigger-box" onClick={() => setIsModalOpen(true)}>
-                        <span>EDIT PROFILE</span>
-                    </div>
+                    {isOwnProfile && (
+                        <button style={{ width: '100%', marginTop: '20px', backgroundColor: '#333', color: 'white', padding: '15px', border: '1px solid #555', cursor: 'pointer', fontWeight: 'bold', textTransform: 'uppercase', fontSize: '1.1rem' }}>
+                            Edit Profile
+                        </button>
+                    )}
                 </div>
 
-                {/* RIGHT COLUMN */}
-                <div className="stats-col">
-                    <div className="stats-container">
-                        <h3>Statistics</h3>
-                        <div className="stats-grid">
-                            <div className="stat-card"><img src="/stats-sold.png" alt="" /><span>Sold: 20</span></div>
-                            <div className="stat-card"><img src="/stats-bought.png" alt="" /><span>Bought: 50</span></div>
-                            <div className="stat-card"><img src="/stats-rating.png" alt="" /><span>Rating: 9/10</span></div>
-                            <div className="stat-card"><img src="/stats-borrowed.png" alt="" /><span>Borrowed: 5</span></div>
+                {/* 🌟 RIGHT COLUMN */}
+                <div className="profile-right-col" style={{ flex: 1 }}>
+                    <div style={{ border: '1px solid #ffff', borderRadius: '8px', backgroundColor: '#1a1a1a', padding: '25px', marginTop: '12px' }}>
+                        <h3 style={{ margin: '0 0 25px 0', fontSize: '1.4rem' }}>Statistics</h3>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                            
+                            <div style={{ backgroundColor: 'white', color: 'black', height: '60px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', border: '2px solid #000' }}>
+                                <div style={{ display: 'flex', width: '180px', alignItems: 'center' }}>
+                                    <span style={{ width: '35px', textAlign: 'center', marginRight: '15px', fontSize: '1.4rem' }}>🏷️</span>
+                                    <span>Sold: 20</span>
+                                </div>
+                            </div>
+                            
+                            <div style={{ backgroundColor: 'white', color: 'black', height: '60px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', border: '2px solid #000' }}>
+                                <div style={{ display: 'flex', width: '180px', alignItems: 'center' }}>
+                                    <span style={{ width: '35px', textAlign: 'center', marginRight: '15px', fontSize: '1.4rem' }}>🧾</span>
+                                    <span>Bought: 50</span>
+                                </div>
+                            </div>
+                            
+                            <div style={{ backgroundColor: 'white', color: 'black', height: '60px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', border: '2px solid #000' }}>
+                                <div style={{ display: 'flex', width: '180px', alignItems: 'center' }}>
+                                    <span style={{ width: '35px', textAlign: 'center', marginRight: '15px', fontSize: '1.4rem' }}>⭐</span>
+                                    <span>Rating: {profileUser.reliability_score || '5'}</span>
+                                </div>
+                            </div>
+                            
+                            <div style={{ backgroundColor: 'white', color: 'black', height: '60px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', border: '2px solid #000' }}>
+                                <div style={{ display: 'flex', width: '180px', alignItems: 'center' }}>
+                                    <span style={{ width: '35px', textAlign: 'center', marginRight: '15px', fontSize: '1.4rem' }}>🤝</span>
+                                    <span>Borrowed: 5</span>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
+
+                    {/* 🌟 RESTORED NOTIFICATIONS BLOCK */}
+                    {isOwnProfile && currentUserId && (
+                        <div style={{ marginTop: '20px' }}>
+                            <NotificationCenter currentUserId={currentUserId} />
+                        </div>
+                    )}
                 </div>
+
             </div>
-
-            {/* --- EDIT PROFILE MODAL --- */}
-            {isModalOpen && (
-                <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-                    <div className="edit-playcard" onClick={(e) => e.stopPropagation()}>
-                        <div className="playcard-header"><h2>UPDATE PROFILE</h2></div>
-                        <div className="playcard-body">
-                            {error && <div className="error-message-box">![ERROR]: {error}</div>}
-                            <div className="edit-field">
-                                <label>NAME</label>
-                                <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
-                            </div>
-                            <div className="edit-field">
-                                <label>DESCRIPTION</label>
-                                <textarea value={formData.bio} onChange={(e) => setFormData({ ...formData, bio: e.target.value })} rows="3" />
-                            </div>
-                            <div className="edit-field">
-                                <label>DEPARTMENT</label>
-                                <select value={formData.department} onChange={(e) => setFormData({ ...formData, department: e.target.value })}>
-                                    <option>Computer Science</option>
-                                    <option>Software Engineering</option>
-                                    <option>Data Science</option>
-                                    <option>Electrical Engineering</option>
-                                </select>
-                            </div>
-                            <div className="edit-field">
-                                <label>NEW PASSWORD</label>
-                                <input type="password" placeholder="Enter new password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} />
-                            </div>
-                        </div>
-                        <div className="playcard-footer">
-                            <button className="p-btn save" onClick={handleSave}>SAVE</button>
-                            <button className="p-btn cancel" onClick={() => setIsModalOpen(false)}>CANCEL</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* --- SELLING HISTORY MODAL --- */}
-            {showHistoryModal && (
-                <div className="modal-overlay">
-                    <div className="edit-playcard">
-                        <div className="playcard-header"><h2>YOUR LISTINGS</h2></div>
-                        <div className="playcard-body">
-                            {historyLoading ? (
-                                <p style={{ textAlign: 'center' }}>Loading history...</p>
-                            ) : sellingHistory.length === 0 ? (
-                                <p style={{ textAlign: 'center', color: 'gray' }}>You haven't listed any items yet.</p>
-                            ) : (
-                                <ul style={{ listStyleType: 'none', padding: 0, margin: 0 }}>
-                                    {sellingHistory.map((item) => (
-                                        <li key={item.item_id} style={{ padding: '10px 0', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            {item.status === 'deleted' ? (
-                                                <span style={{ color: '#777', textDecoration: 'line-through' }}>
-                                                    {item.title} <span style={{ fontSize: '0.8em' }}>(deleted)</span>
-                                                </span>
-                                            ) : (
-                                                <Link to={`/item/${item.item_id}`} style={{ color: '#FF4500', textDecoration: 'none', fontWeight: 'bold' }}>
-                                                    {item.title}
-                                                </Link>
-                                            )}
-                                            <span style={{ color: '#aaa', fontSize: '0.8em' }}>{item.status.toUpperCase()}</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </div>
-                        <div className="playcard-footer" style={{ marginTop: '20px' }}>
-                            <button style={{ width: '100%', backgroundColor: '#555', border: 'none', padding: '10px', color: 'white', cursor: 'pointer', fontWeight: 'bold' }} onClick={() => setShowHistoryModal(false)}>CLOSE</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* --- WISHLIST MODAL --- */}
-            {showWishlistModal && (
-                <div className="modal-overlay">
-                    <div className="edit-playcard">
-                        <div className="playcard-header"><h2>YOUR WISHLIST</h2></div>
-                        <div className="playcard-body">
-                            {wishlistLoading ? (
-                                <p style={{ textAlign: 'center' }}>Loading wishlist...</p>
-                            ) : wishlistItems.length === 0 ? (
-                                <p style={{ textAlign: 'center', color: 'gray' }}>You haven't saved any items yet.</p>
-                            ) : (
-                                <ul style={{ listStyleType: 'none', padding: 0, margin: 0 }}>
-                                    {wishlistItems.map((item) => (
-                                        <li key={item.item_id} style={{ padding: '10px 0', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <Link to={`/item/${item.item_id}`} style={{ color: '#FF4500', textDecoration: 'none', fontWeight: 'bold' }}>
-                                                {item.title}
-                                            </Link>
-                                            <span style={{ color: '#aaa', fontSize: '0.8em', backgroundColor: '#222', padding: '3px 6px', borderRadius: '4px' }}>
-                                                PKR {item.price}
-                                            </span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </div>
-                        <div className="playcard-footer" style={{ marginTop: '20px' }}>
-                            <button style={{ width: '100%', backgroundColor: '#555', border: 'none', padding: '10px', color: 'white', cursor: 'pointer', fontWeight: 'bold' }} onClick={() => setShowWishlistModal(false)}>CLOSE</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
         </div>
     );
 };

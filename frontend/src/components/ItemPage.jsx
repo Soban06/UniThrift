@@ -11,14 +11,14 @@ const ItemPage = () => {
     const [loading, setLoading] = useState(true);
     const [isWishlisted, setIsWishlisted] = useState(false);
     const [buyQuantity, setBuyQuantity] = useState(1);
-
-    // Tracks if someone is logged in
     const [currentUserId, setCurrentUserId] = useState(null);
-
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editFormData, setEditFormData] = useState({
         title: '', item_description: '', price: 0, stock_quantity: 0
     });
+
+    const [purchaseMessage, setPurchaseMessage] = useState('');
+    const [isPurchaseSuccess, setIsPurchaseSuccess] = useState(false);
 
     useEffect(() => {
         const fetchItemData = async () => {
@@ -30,11 +30,9 @@ const ItemPage = () => {
                     setCurrentUserId(userId);
                 }
 
-                // 1. Fetch the item details
                 const response = await axios.get('http://localhost:5000/api/items/' + itemId);
                 setItem(response.data);
 
-                // Pre-fill the edit form with the current data
                 setEditFormData({
                     title: response.data.title,
                     item_description: response.data.item_description,
@@ -42,13 +40,11 @@ const ItemPage = () => {
                     stock_quantity: response.data.stock_quantity
                 });
 
-                // 2. Fetch wishlist state to see if the heart should be red on load
                 if (userId) {
                     const wishListRes = await axios.get('http://localhost:5000/api/users/' + userId + '/wishlist');
                     const alreadyLiked = wishListRes.data.some(wItem => wItem.item_id.toString() === itemId.toString());
                     setIsWishlisted(alreadyLiked);
                 }
-
             } catch (error) {
                 console.error("Error fetching item details:", error);
             } finally {
@@ -59,93 +55,159 @@ const ItemPage = () => {
         fetchItemData();
     }, [itemId]);
 
-    // --- WISHLIST LOGIC ---
     const toggleWishlist = async () => {
-        if (!currentUserId) {
-            alert('Please log in to add items to your wishlist!');
-            return; 
-        }
+        if (!currentUserId) return alert('Please log in to add items to your wishlist!');
+
+        const newWishlistState = !isWishlisted;
+        setIsWishlisted(newWishlistState);
+
+        setItem(prevItem => ({
+            ...prevItem,
+            wishlist_count: newWishlistState
+                ? (prevItem.wishlist_count || 0) + 1
+                : (prevItem.wishlist_count || 0) - 1
+        }));
 
         try {
-            setIsWishlisted(!isWishlisted);
+            const token = sessionStorage.getItem('token');
             await axios.post('http://localhost:5000/api/wishlist/toggle', {
                 userId: currentUserId,
                 itemId: itemId
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
             });
         } catch (err) {
             console.error("Failed to toggle wishlist", err);
-            setIsWishlisted(!isWishlisted);
+            setIsWishlisted(!newWishlistState);
+            setItem(prevItem => ({
+                ...prevItem,
+                wishlist_count: !newWishlistState
+                    ? (prevItem.wishlist_count || 0) + 1
+                    : (prevItem.wishlist_count || 0) - 1
+            }));
+            if (err.response && err.response.status === 401) alert("Session expired. Please log in again.");
         }
     };
 
-    // --- EDIT LOGIC ---
     const handleSaveEdit = async () => {
         try {
+            const token = sessionStorage.getItem('token');
+            if (!token) return alert("You must be logged in to edit!");
+
             await axios.put(`http://localhost:5000/api/items/update/${itemId}`, {
                 ...editFormData,
-                userId: currentUserId 
+                userId: currentUserId
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
             });
+
             alert("Listing updated successfully!");
             setIsEditModalOpen(false);
-            window.location.reload(); 
+            window.location.reload();
         } catch (error) {
             console.error("Failed to update item", error);
-            alert("Error updating item.");
+            if (error.response && error.response.status === 401) alert("Session expired. Please log in again.");
+            else alert("Error updating item.");
         }
     };
 
-    // --- DELETE LOGIC ---
     const handleDelete = async () => {
         const isConfirmed = window.confirm("Are you sure you want to permanently delete this listing?");
         if (isConfirmed) {
             try {
+                const token = sessionStorage.getItem('token');
+                if (!token) return alert("You must be logged in to delete!");
+
                 await axios.delete(`http://localhost:5000/api/items/${itemId}`, {
-                    data: { userId: currentUserId } 
+                    headers: { Authorization: `Bearer ${token}` },
+                    data: { userId: currentUserId }
                 });
+
                 alert("Listing deleted successfully!");
-                navigate('/'); 
+                navigate('/');
             } catch (error) {
                 console.error("Failed to delete item", error);
-                alert("Error deleting item.");
+                if (error.response && error.response.status === 401) alert("Session expired. Please log in again.");
+                else alert("Error deleting item.");
             }
         }
     };
 
-    // --- PURCHASE LOGIC (FIXED) ---
+    // 🌟 SMART PURCHASE/BORROW LOGIC
     const handlePurchase = async () => {
         if (!currentUserId) {
-            alert('You must be logged in to make a purchase!');
+            setIsPurchaseSuccess(false);
+            setPurchaseMessage('❌ You must be logged in!');
+            setTimeout(() => setPurchaseMessage(''), 3000);
             return;
         }
 
         if (buyQuantity > item.stock_quantity) {
-            alert("You cannot buy more than the available stock!");
+            setIsPurchaseSuccess(false);
+            setPurchaseMessage("❌ You cannot request more than the available stock!");
+            setTimeout(() => setPurchaseMessage(''), 3000);
             return;
         }
 
         try {
-            await axios.post('http://localhost:5000/api/checkout', { 
-                itemId: item.item_id, 
-                userId: currentUserId, 
-                qty: Number(buyQuantity) // 🌟 Forces input into a strict Math Number
-            });
+            const token = sessionStorage.getItem('token');
+
+            if (item.listing_type === 'borrow') {
+                // BORROW PATH: Triggers the Handshake
+                await axios.post('http://localhost:5000/api/transactions/borrow', { 
+                    itemId: item.item_id, 
+                    buyerId: currentUserId, 
+                    sellerId: item.seller_id,
+                    qty: Number(buyQuantity) 
+                }, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                
+                setIsPurchaseSuccess(true);
+                setPurchaseMessage("⏳ Borrow request sent! Waiting for lender to approve.");
+            } else {
+                // BUY PATH: Instant Purchase
+                await axios.post('http://localhost:5000/api/transactions/purchase', { 
+                    itemId: item.item_id, 
+                    buyerId: currentUserId, 
+                    sellerId: item.seller_id,
+                    qty: Number(buyQuantity) 
+                }, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                
+                setIsPurchaseSuccess(true);
+                setPurchaseMessage("✅ Purchase successful!");
+            }
             
-            alert("Purchase successful!");
-            
-            // 🌟 Instantly drop the stock on the screen
+            // Deduct stock for both scenarios immediately to reserve the item
             setItem(prevItem => ({
                 ...prevItem,
-                stock_quantity: prevItem.stock_quantity - Number(buyQuantity)
+                stock_quantity: prevItem.stock_quantity - Number(buyQuantity),
+                seller_sold_count: item.listing_type !== 'borrow' ? (prevItem.seller_sold_count || 0) + Number(buyQuantity) : prevItem.seller_sold_count
             }));
 
-            setBuyQuantity(1); // Reset input box
+            setBuyQuantity(1); 
+            setTimeout(() => setPurchaseMessage(''), 4000);
             
         } catch (error) {
             console.error(error);
-            alert("Error purchasing item. It might be out of stock!");
+            setIsPurchaseSuccess(false);
+            if (error.response && error.response.status === 401) {
+                setPurchaseMessage("❌ Session expired. Please log in again.");
+            } else if (error.response && error.response.data && error.response.data.error) {
+                setPurchaseMessage(`❌ ${error.response.data.error}`); 
+            } else {
+                setPurchaseMessage("❌ Error processing request. It might be out of stock!");
+            }
+            setTimeout(() => setPurchaseMessage(''), 4000);
         }
     };
 
+    const handleMessageSeller = () => {
+        if (!currentUserId) return alert('You must be logged in to send a message!');
+        navigate(`/chat/${item.item_id}/${item.seller_id}`);
+    };
 
     if (loading) return <div className="profile-page-wrapper"><h1 style={{ color: 'white', textAlign: 'center', marginTop: '50px' }}>Loading Item...</h1></div>;
     if (!item) return <div className="profile-page-wrapper"><h1 style={{ color: 'white', textAlign: 'center', marginTop: '50px' }}>Item Not Found</h1></div>;
@@ -166,146 +228,167 @@ const ItemPage = () => {
             </header>
 
             <div className="profile-content-grid">
-
-                {/* --- LEFT COLUMN --- */}
+                {/* 🌟 LEFT COLUMN */}
                 <div className="profile-left-col">
-                    <h2 className="profile-username">{item.title}</h2>
-                    <div className="profile-pic-frame">
-                        <img src={item.image_url} alt={item.title} style={{ objectFit: 'cover' }} />
+                    <h2 className="profile-username" style={{ fontSize: '2.2rem', margin: '0 0 15px 0', lineHeight: '0.8' }}>
+                        {item.title}
+                    </h2>
+                    
+                    <div className="profile-pic-frame" style={{ backgroundColor: '#ccc', border: '2px solid #555', marginBottom: '20px', aspectRatio: '1/1' }}>
+                        <img src={item.image_url} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     </div>
-
-                    <div className="profile-description">
-                        <h3>Description</h3>
-                        <p style={{ color: '#ccc', marginBottom: '20px' }}>
-                            {item.item_description || "No description provided."}
-                        </p>
-
-                        <h3>Listing Info</h3>
-                        <ul>
-                            <li><strong>Seller:</strong> {item.seller_name}</li>
-                            <li><strong>Type:</strong> {item.listing_type ? item.listing_type.toUpperCase() : 'SELL'}</li>
-                            <li><strong>Department:</strong> {item.dept_name}</li>
+                    
+                    <div className="profile-description" style={{ border: '1px solid #555', padding: '15px', backgroundColor: '#1a1a1a' }}>
+                        <h3 style={{ margin: '0 0 10px 0', fontSize: '1.1rem', textTransform: 'uppercase' }}>Description</h3>
+                        <p style={{ color: '#aaa', margin: '0 0 20px 0', fontSize: '1rem' }}>{item.item_description || "No description provided."}</p>
+                        
+                        <h3 style={{ margin: '0 0 10px 0', fontSize: '1.1rem', textTransform: 'uppercase' }}>Listing Info</h3>
+                        <ul style={{ margin: 0, paddingLeft: '20px', color: '#aaa', fontSize: '1rem' }}>
+                            <li style={{ marginBottom: '5px' }}><strong>Type:</strong> {item.listing_type ? item.listing_type.toUpperCase() : 'SELL'}</li>
+                            <li style={{ marginBottom: '5px' }}><strong>Department:</strong> {item.dept_name}</li>
                             <li><strong>Category:</strong> {item.category_name}</li>
                         </ul>
                     </div>
                 </div>
 
-                {/* --- MIDDLE COLUMN --- */}
-                <div className="profile-mid-col">
-                    <div className="history-container">
-
-                        <div className="history-box">
-                            <h4>PRICE</h4>
-                            <p style={{ color: '#FF4500', fontWeight: 'bold', fontSize: '1.4rem', margin: '5px 0' }}>
-                                PKR {item.price}
+                {/* 🌟 MIDDLE COLUMN */}
+                <div className="profile-mid-col" style={{ display: 'flex', flexDirection: 'column' }}>
+                    <div className="history-container" style={{ border: '1px solid #555', borderRadius: '8px', backgroundColor: '#222', padding: '25px', marginTop: '12px' }}>
+                        
+                        {/* SELLER (Owner/Lender) */}
+                        <div style={{ borderBottom: '1px solid #444', paddingBottom: '15px', marginBottom: '20px' }}>
+                            <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', color: '#aaa', textTransform: 'uppercase' }}>
+                                {item.listing_type === 'borrow' ? 'Lender' : 'Seller'}
+                            </h4>
+                            <p 
+                                onClick={() => navigate(`/profile/${item.seller_id}`)}
+                                style={{ 
+                                    color: '#ffffff', 
+                                    fontWeight: 'bold', 
+                                    fontSize: '1.3rem', 
+                                    margin: 0,
+                                    cursor: 'pointer',
+                                    display: 'inline-block',
+                                    transition: 'color 0.2s ease-in-out',
+                                    textDecoration: 'underline'
+                                }}
+                                onMouseEnter={(e) => e.target.style.color = '#FF4500'}
+                                onMouseLeave={(e) => e.target.style.color = '#ffffff'}
+                            >
+                                {item.seller_name}
                             </p>
                         </div>
 
-                        <div className="history-box">
-                            <h4>AVAILABILITY</h4>
-                            <p style={{ color: !isOutOfStock ? '#4CAF50' : '#f44336', fontWeight: 'bold' }}>
-                                {!isOutOfStock ? item.stock_quantity + ' IN STOCK' : 'OUT OF STOCK'}
+                        {/* PRICE */}
+                        <div style={{ borderBottom: '1px solid #444', paddingBottom: '15px', marginBottom: '20px' }}>
+                            <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', color: '#aaa', textTransform: 'uppercase' }}>Price</h4>
+                            <p style={{ color: '#FF4500', fontWeight: 'bold', fontSize: '1.3rem', margin: 0 }}>PKR {item.price}</p>
+                        </div>
+                        
+                        {/* AVAILABILITY */}
+                        <div style={{ borderBottom: (!isOwner && !isOutOfStock) ? '1px solid #444' : 'none', paddingBottom: (!isOwner && !isOutOfStock) ? '15px' : '0', marginBottom: (!isOwner && !isOutOfStock) ? '20px' : '0' }}>
+                            <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', color: '#aaa', textTransform: 'uppercase' }}>Availability</h4>
+                            <p style={{ color: !isOutOfStock ? '#4CAF50' : '#f44336', fontWeight: 'bold', fontSize: '1.1rem', margin: 0 }}>
+                                {!isOutOfStock ? item.stock_quantity + ' IN STOCK' : 'UNAVAILABLE'}
                             </p>
                         </div>
 
+                        {/* QUANTITY */}
                         {!isOwner && !isOutOfStock && (
-                            <div className="history-box">
-                                <h4>QUANTITY</h4>
-                                <input
-                                    type="number"
-                                    value={buyQuantity}
+                            <div>
+                                <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', color: '#aaa', textTransform: 'uppercase' }}>Quantity Needed</h4>
+                                <input type="number" value={buyQuantity}
                                     onChange={(e) => {
                                         const val = parseInt(e.target.value);
                                         setBuyQuantity(val > item.stock_quantity ? item.stock_quantity : val);
                                     }}
-                                    min="1"
-                                    max={item.stock_quantity}
-                                    style={{
-                                        width: '100%', padding: '8px', marginTop: '5px',
-                                        backgroundColor: '#222', color: 'white',
-                                        border: '1px solid #444', borderRadius: '4px'
-                                    }}
+                                    min="1" max={item.stock_quantity}
+                                    style={{ width: '100%', padding: '12px', backgroundColor: '#1a1a1a', color: 'white', border: '1px solid #444', borderRadius: '4px', fontSize: '1.1rem', fontWeight: 'bold' }}
                                 />
-                                <small style={{ color: '#888', display: 'block', marginTop: '5px' }}>
-                                    Max available: {item.stock_quantity}
-                                </small>
+                                <small style={{ color: '#888', display: 'block', marginTop: '8px' }}>Max available: {item.stock_quantity}</small>
                             </div>
                         )}
                     </div>
 
+                    {/* BUTTONS */}
                     {!isOwner ? (
-                        <div style={{ display: 'flex', gap: '10px', marginTop: '20px', alignItems: 'center' }}>
-                            <button
-                                className="edit-trigger-box"
-                                disabled={isOutOfStock}
-                                style={{
-                                    flex: 1,
-                                    backgroundColor: isOutOfStock ? '#333' : '#FF4500',
-                                    margin: 0,
-                                    border: 'none',
-                                    cursor: isOutOfStock ? 'not-allowed' : 'pointer',
-                                    opacity: isOutOfStock ? 0.6 : 1
-                                }}
-                                onClick={handlePurchase} // 🌟 Wired up the new function here!
-                            >
-                                <span>{isOutOfStock ? 'SOLD OUT' : 'BUY NOW'}</span>
-                            </button>
+                        <>
+                            <div style={{ display: 'flex', gap: '15px', marginTop: '20px', alignItems: 'center' }}>
+                                {/* 🌟 DYNAMIC BUTTON TEXT based on Borrow/Sell status */}
+                                <button disabled={isOutOfStock} onClick={handlePurchase}
+                                    style={{ flex: 1, backgroundColor: isOutOfStock ? '#333' : '#FF4500', color: 'white', padding: '15px', border: '1px solid #555', cursor: isOutOfStock ? 'not-allowed' : 'pointer', opacity: isOutOfStock ? 0.6 : 1, fontWeight: 'bold', fontSize: '1.1rem', textTransform: 'uppercase' }}>
+                                    {isOutOfStock ? 'UNAVAILABLE' : (item.listing_type === 'borrow' ? 'ASK TO BORROW' : 'BUY NOW')}
+                                </button>
 
-                            <div
-                                onClick={toggleWishlist}
-                                style={{
-                                    fontSize: '2rem',
-                                    cursor: 'pointer',
-                                    transition: '0.2s',
-                                    filter: isWishlisted ? 'drop-shadow(0 0 5px #FF4500)' : 'none'
-                                }}
-                            >
-                                {isWishlisted ? '❤️' : '🤍'}
+                                <button onClick={handleMessageSeller} 
+                                    style={{ flex: 1, backgroundColor: '#1a1a1a', color: 'white', padding: '15px', border: '1px solid #555', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', textTransform: 'uppercase' }}>
+                                    {item.listing_type === 'borrow' ? 'MESSAGE LENDER' : 'MESSAGE SELLER'}
+                                </button>
+
+                                <div onClick={toggleWishlist} style={{ fontSize: '2rem', cursor: 'pointer', transition: '0.2s', filter: isWishlisted ? 'drop-shadow(0 0 5px #FF4500)' : 'none', padding: '0 10px' }}>
+                                    {isWishlisted ? '❤️' : '🤍'}
+                                </div>
                             </div>
-                        </div>
-                  ) : (
-                        <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-                            <div 
-                                className="edit-trigger-box" 
-                                style={{ flex: 1, backgroundColor: '#ffffff', cursor: 'pointer', margin: 0 }}
-                                onClick={() => setIsEditModalOpen(true)}
-                            >
-                                <span style={{ color: '#000' }}>EDIT LISTING</span>
-                            </div>
-                            
-                            <div 
-                                className="edit-trigger-box" 
-                                style={{ flex: 1, backgroundColor: '#f44336', cursor: 'pointer', margin: 0 }}
-                                onClick={handleDelete}
-                            >
-                                <span>DELETE</span>
-                            </div>
+
+                            {purchaseMessage && (
+                                <div style={{
+                                    marginTop: '15px', padding: '15px', borderRadius: '4px',
+                                    backgroundColor: isPurchaseSuccess ? 'rgba(76, 175, 80, 0.1)' : 'rgba(244, 67, 54, 0.1)',
+                                    color: isPurchaseSuccess ? '#4CAF50' : '#f44336',
+                                    border: `1px solid ${isPurchaseSuccess ? '#4CAF50' : '#f44336'}`,
+                                    textAlign: 'center', fontWeight: 'bold', fontSize: '1.1rem'
+                                }}>
+                                    {purchaseMessage}
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <div style={{ display: 'flex', gap: '15px', marginTop: '20px' }}>
+                            <button onClick={() => setIsEditModalOpen(true)} 
+                                style={{ flex: 1, backgroundColor: '#ffffff', color: '#000', padding: '15px', border: '1px solid #555', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', textTransform: 'uppercase' }}>
+                                EDIT LISTING
+                            </button>
+                            <button onClick={handleDelete} 
+                                style={{ flex: 1, backgroundColor: '#f44336', color: 'white', padding: '15px', border: '1px solid #555', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', textTransform: 'uppercase' }}>
+                                DELETE
+                            </button>
                         </div>
                     )}
                 </div>
 
-                {/* --- RIGHT COLUMN --- */}
-                <div className="stats-col">
-                    <div className="stats-container">
-                        <h3>Seller Statistics</h3>
-                        <div className="stats-grid">
-                            <div className="stat-card">
-                                <img src="/stats-sold.png" alt="Sold" />
-                                <span>Sold: 15</span>
+                {/* 🌟 RIGHT COLUMN (Item Statistics) */}
+                <div className="profile-right-col" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ border: '2px solid #ffffff', borderRadius: '8px', backgroundColor: '#1a1a1a', padding: '25px', flex: 1, display: 'flex', flexDirection: 'column', marginTop: '12px' }}>
+                        <h3 style={{ margin: '0 0 25px 0', fontSize: '1.4rem' }}>Item Statistics</h3>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', flex: 1 }}>
+                            
+                            <div style={{ backgroundColor: 'white', color: 'black', height: '60px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', border: '2px solid #000' }}>
+                                <div style={{ display: 'flex', width: '180px', alignItems: 'center' }}>
+                                    <span style={{ width: '35px', textAlign: 'center', marginRight: '15px', fontSize: '1.4rem' }}>🏷️</span>
+                                    <span>Sold: {item.seller_sold_count || 0}</span>
+                                </div>
                             </div>
-                            <div className="stat-card">
-                                <img src="/stats-rating.png" alt="Rating" />
-                                <span>Rating: 8.5/10</span>
+                            
+                            <div style={{ backgroundColor: 'white', color: 'black', height: '60px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', border: '2px solid #000' }}>
+                                <div style={{ display: 'flex', width: '180px', alignItems: 'center' }}>
+                                    <span style={{ width: '35px', textAlign: 'center', marginRight: '15px', fontSize: '1.4rem' }}>⭐</span>
+                                    <span>Rating: 8.5/10</span>
+                                </div>
                             </div>
-                            <div className="stat-card">
-                                <img src="/stats-borrowed.png" alt="Borrowed" />
-                                <span>Borrowed: 4</span>
+                            
+                            <div style={{ backgroundColor: 'white', color: 'black', height: '60px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', border: '2px solid #000' }}>
+                                <div style={{ display: 'flex', width: '180px', alignItems: 'center' }}>
+                                    <span style={{ width: '35px', textAlign: 'center', marginRight: '15px', fontSize: '1.4rem' }}>🤝</span>
+                                    <span>Borrowed: 4</span>
+                                </div>
                             </div>
-
-                            <div className="stat-card">
-                                <img src="/stats-wishlist.png" alt="Wishlist" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'inline'; }} />
-                                <span style={{ display: 'none', fontSize: '1.5rem', marginRight: '10px' }}>❤️</span>
-                                <span>Wishlisted: {item.wishlist_count || 0}</span>
+                            
+                            <div style={{ backgroundColor: 'white', color: 'black', height: '60px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', border: '2px solid #000' }}>
+                                <div style={{ display: 'flex', width: '180px', alignItems: 'center' }}>
+                                    <span style={{ width: '35px', textAlign: 'center', marginRight: '15px', fontSize: '1.4rem' }}>❤️</span>
+                                    <span>Wishlisted: {item.wishlist_count || 0}</span>
+                                </div>
                             </div>
 
                         </div>
@@ -313,34 +396,18 @@ const ItemPage = () => {
                 </div>
             </div>
 
-            {/* --- EDIT ITEM MODAL --- */}
+            {/* EDIT MODAL */}
             {isEditModalOpen && (
                 <div className="modal-overlay" onClick={() => setIsEditModalOpen(false)}>
                     <div className="edit-playcard" onClick={(e) => e.stopPropagation()}>
                         <div className="playcard-header"><h2>EDIT LISTING</h2></div>
                         <div className="playcard-body">
-                            
-                            <div className="edit-field">
-                                <label>TITLE</label>
-                                <input type="text" value={editFormData.title} onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })} />
-                            </div>
-                            
-                            <div className="edit-field">
-                                <label>DESCRIPTION</label>
-                                <textarea value={editFormData.item_description} onChange={(e) => setEditFormData({ ...editFormData, item_description: e.target.value })} rows="3" />
-                            </div>
-                            
+                            <div className="edit-field"><label>TITLE</label><input type="text" value={editFormData.title} onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })} /></div>
+                            <div className="edit-field"><label>DESCRIPTION</label><textarea value={editFormData.item_description} onChange={(e) => setEditFormData({ ...editFormData, item_description: e.target.value })} rows="3" /></div>
                             <div style={{ display: 'flex', gap: '15px' }}>
-                                <div className="edit-field" style={{ flex: 1 }}>
-                                    <label>PRICE (PKR)</label>
-                                    <input type="number" value={editFormData.price} onChange={(e) => setEditFormData({ ...editFormData, price: e.target.value })} />
-                                </div>
-                                <div className="edit-field" style={{ flex: 1 }}>
-                                    <label>STOCK QUANTITY</label>
-                                    <input type="number" value={editFormData.stock_quantity} onChange={(e) => setEditFormData({ ...editFormData, stock_quantity: e.target.value })} />
-                                </div>
+                                <div className="edit-field" style={{ flex: 1 }}><label>PRICE (PKR)</label><input type="number" value={editFormData.price} onChange={(e) => setEditFormData({ ...editFormData, price: e.target.value })} /></div>
+                                <div className="edit-field" style={{ flex: 1 }}><label>STOCK QUANTITY</label><input type="number" value={editFormData.stock_quantity} onChange={(e) => setEditFormData({ ...editFormData, stock_quantity: e.target.value })} /></div>
                             </div>
-
                         </div>
                         <div className="playcard-footer">
                             <button className="p-btn save" onClick={handleSaveEdit}>SAVE CHANGES</button>

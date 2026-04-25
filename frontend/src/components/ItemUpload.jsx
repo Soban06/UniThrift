@@ -8,23 +8,20 @@ const ItemUpload = () => {
     const [sellerId, setSellerId] = useState(null);
     const [message, setMessage] = useState('');
     const [isSuccess, setIsSuccess] = useState(false);
-    
-    // 🌟 NEW: State to hold the dynamic departments
     const [departments, setDepartments] = useState([]);
 
     const [formData, setFormData] = useState({
         title: '', 
         description: '', 
         price: '', 
-        listingType: 'sell', 
-        departmentId: '', // 🌟 Defaulting to blank so they are forced to pick
+        departmentId: '', 
         categoryId: '1',
+        listingType: 'sell', // 🌟 Just one declaration here!
         quantity: 1
     });
     const [itemImage, setItemImage] = useState(null);
 
     useEffect(() => {
-        // 1. Check Auth
         const storedUser = sessionStorage.getItem('user');
         if (storedUser) {
             const parsedUser = JSON.parse(storedUser);
@@ -33,7 +30,6 @@ const ItemUpload = () => {
             navigate('/login');
         }
 
-        // 🌟 2. Fetch Departments for the dropdown
         const fetchDepartments = async () => {
             try {
                 const response = await axios.get('http://localhost:5000/api/departments');
@@ -43,7 +39,6 @@ const ItemUpload = () => {
             }
         };
         fetchDepartments();
-
     }, [navigate]);
 
     const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -64,19 +59,36 @@ const ItemUpload = () => {
         dataToSend.append('title', formData.title);
         dataToSend.append('description', formData.description);
         dataToSend.append('price', formData.price);
-        dataToSend.append('listingType', formData.listingType);
+        dataToSend.append('listingType', formData.listingType); // 🌟 Appended correctly
         dataToSend.append('categoryId', formData.categoryId);
         dataToSend.append('departmentId', formData.departmentId);
         dataToSend.append('quantity', formData.quantity);
         if (itemImage) dataToSend.append('itemImage', itemImage);
 
         try {
-            await axios.post('http://localhost:5000/api/items/upload', dataToSend);
+            const token = sessionStorage.getItem('token');
+            if (!token) {
+                setMessage("❌ You must be logged in to upload an item!");
+                return;
+            }
+
+            await axios.post('http://localhost:5000/api/items/upload', dataToSend, {
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+            
             setIsSuccess(true);
-            setMessage('✅ Item listed successfully!');
+            setMessage('✅ Item listed successfully! Redirecting...');
             setTimeout(() => navigate('/'), 2000); 
         } catch (error) {
-            setMessage('❌ Failed to upload item. Check backend terminal for details.');
+            console.error(error);
+            if (error.response && error.response.status === 401) {
+                setMessage('❌ Session expired. Please log out and log back in.');
+            } else {
+                setMessage('❌ Failed to upload item. Check backend terminal for details.');
+            }
         }
     };
 
@@ -91,7 +103,7 @@ const ItemUpload = () => {
             <div className="unithrift-box form-container">
                 <h2>Upload Listing</h2>
                 {message && (
-                    <div className={isSuccess ? "message-alert success" : "message-alert"} style={isSuccess ? {color: '#4CAF50'} : {}}>
+                    <div className={isSuccess ? "message-alert success" : "message-alert"} style={isSuccess ? {color: '#4CAF50', fontWeight: 'bold', marginBottom: '15px'} : {}}>
                         {message}
                     </div>
                 )}
@@ -101,17 +113,16 @@ const ItemUpload = () => {
                         <label>Item Title:</label>
                         <input type="text" name="title" placeholder="What are you listing?" value={formData.title} onChange={handleChange} required />
                     </div>
-
                     <div className="input-group">
                         <label>Price (PKR):</label>
                         <input type="number" name="price" placeholder="e.g. 500" value={formData.price} onChange={handleChange} min="0" required />
                     </div>
-
                     <div className="input-group">
                         <label>Stock Quantity:</label>
                         <input type="number" name="quantity" value={formData.quantity} onChange={handleChange} min="1" required />
                     </div>
-
+                    
+                    {/* 🌟 NEW: Listing Type Dropdown */}
                     <div className="input-group">
                         <label>Listing Type:</label>
                         <select name="listingType" value={formData.listingType} onChange={handleChange} required>
@@ -120,7 +131,6 @@ const ItemUpload = () => {
                         </select>
                     </div>
 
-                    {/* 🌟 NEW DYNAMIC DEPARTMENT DROPDOWN 🌟 */}
                     <div className="input-group">
                         <label>Target Department:</label>
                         <select name="departmentId" value={formData.departmentId} onChange={handleChange} required>
@@ -132,8 +142,6 @@ const ItemUpload = () => {
                             ))}
                         </select>
                     </div>
-
-                    {/* (Note: Categories are still hardcoded here, you can do the same dynamic fetch for them later if you want!) */}
                     <div className="input-group">
                         <label>Item Category:</label>
                         <select name="categoryId" value={formData.categoryId} onChange={handleChange} required>
@@ -143,12 +151,10 @@ const ItemUpload = () => {
                             <option value="4">Miscellaneous</option>
                         </select>
                     </div>
-
                     <div className="input-group">
                         <label>Description:</label>
                         <textarea name="description" placeholder="Condition, details, etc." value={formData.description} onChange={handleChange} rows="3" />
                     </div>
-
                     <div className="input-group">
                         <label>Item Image:</label>
                         <input type="file" name="itemImage" accept="image/*" onChange={handleFileChange} className="file-input" />

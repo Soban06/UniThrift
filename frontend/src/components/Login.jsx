@@ -19,6 +19,8 @@ const Login = () => {
         try {
             const response = await axios.post('http://localhost:5000/api/login', credentials);
             sessionStorage.setItem('user', JSON.stringify(response.data.user));
+            // 🌟 Save the JWT Token!
+            sessionStorage.setItem('token', response.data.token);
             navigate('/');
         } catch (error) {
             if (error.response && error.response.data.error) {
@@ -31,7 +33,6 @@ const Login = () => {
 
     return (
         <div className="auth-page-container">
-            {/* CLICKABLE LOGO BANNER */}
             <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
                 <div className="unithrift-banner">
                     <h1>UNI-THRIFT</h1>

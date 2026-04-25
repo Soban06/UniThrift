@@ -8,12 +8,11 @@ const SignUp = () => {
     const [departments, setDepartments] = useState([]); 
     
     const [formData, setFormData] = useState({
-        name: '', email: '', password: '', departmentId: '', description: '', // Default to blank
+        name: '', email: '', password: '', departmentId: '', description: '',
     });
     const [profilePic, setProfilePic] = useState(null); 
     const [message, setMessage] = useState('');
 
-    //  Fetch departments on mount
     useEffect(() => {
         const fetchDepartments = async () => {
             try {
@@ -49,6 +48,8 @@ const SignUp = () => {
         try {
             const response = await axios.post('http://localhost:5000/api/signup', dataToSend);
             sessionStorage.setItem('user', JSON.stringify(response.data.user));
+            // 🌟 Save the JWT Token!
+            sessionStorage.setItem('token', response.data.token);
             navigate('/');
         } catch (error) {
             if (error.response && error.response.data.error) {
@@ -85,7 +86,6 @@ const SignUp = () => {
                         <input type="password" name="password" placeholder="Create a password" value={formData.password} onChange={handleChange} required />
                     </div>
                     
-                    {/*  NEW DYNAMIC DEPARTMENT DROPDOWN  */}
                     <div className="input-group">
                         <label>Department:</label>
                         <select name="departmentId" value={formData.departmentId} onChange={handleChange} required>
