@@ -48,7 +48,7 @@ const SignUp = () => {
         try {
             const response = await axios.post('http://localhost:5000/api/signup', dataToSend);
             sessionStorage.setItem('user', JSON.stringify(response.data.user));
-            // 🌟 Save the JWT Token!
+            // Save the JWT Token!
             sessionStorage.setItem('token', response.data.token);
             navigate('/');
         } catch (error) {
