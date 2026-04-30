@@ -7,7 +7,7 @@ import './MarketplacePage.css';
 const MarketplacePage = () => {
     const navigate = useNavigate();
     const [items, setItems] = useState([]);
-    const [departments, setDepartments] = useState([]); // 🌟 NEW State
+    const [departments, setDepartments] = useState([]); // NEW State for depts
     const [loading, setLoading] = useState(true);
     
     const [searchQuery, setSearchQuery] = useState('');
@@ -20,7 +20,7 @@ const MarketplacePage = () => {
     });
 
     useEffect(() => {
-        // 🌟 Fetch both Items AND Departments simultaneously
+        // Fetch both Items and Departments simultaneously
         const fetchData = async () => {
             try {
                 const [itemsResponse, deptsResponse] = await Promise.all([
@@ -98,7 +98,7 @@ const MarketplacePage = () => {
                 {showFilters && (
                     <div className="preferences-dropdown">
                         
-                        {/* 🌟 NEW DYNAMIC DEPARTMENT DROPDOWN 🌟 */}
+                        {/*   DYNAMIC DEPARTMENT DROPDOWN  */}
                         <div className="pref-group">
                             <label>Department</label>
                             <select 
