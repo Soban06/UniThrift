@@ -136,7 +136,7 @@ const ItemPage = () => {
         }
     };
 
-    // 🌟 SMART PURCHASE/BORROW LOGIC
+    //  SMART PURCHASE/BORROW LOGIC
     const handlePurchase = async () => {
         if (!currentUserId) {
             setIsPurchaseSuccess(false);
@@ -224,7 +224,7 @@ const ItemPage = () => {
             </header>
 
             <div className="profile-content-grid">
-                {/* 🌟 LEFT COLUMN */}
+                {/*  LEFT COLUMN */}
                 <div className="profile-left-col">
                     <h2 className="profile-username" style={{ fontSize: '2.2rem', margin: '0 0 15px 0', lineHeight: '0.8' }}>
                         {item.title}
@@ -247,7 +247,7 @@ const ItemPage = () => {
                     </div>
                 </div>
 
-                {/* 🌟 MIDDLE COLUMN */}
+                {/*  MIDDLE COLUMN */}
                 <div className="profile-mid-col" style={{ display: 'flex', flexDirection: 'column' }}>
                     <div className="history-container" style={{ border: '1px solid #555', borderRadius: '8px', backgroundColor: '#222', padding: '25px', marginTop: '12px' }}>
                         
@@ -305,7 +305,7 @@ const ItemPage = () => {
                             </div>
                         )}
 
-                        {/* 🌟 NEW: DISPLAY BORROW PERIOD */}
+                        {/*  NEW: DISPLAY BORROW PERIOD */}
                         {item.listing_type === 'borrow' && (
                             <div style={{ marginTop: '20px' }}>
                                 <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', color: '#aaa', textTransform: 'uppercase' }}>Borrow Period</h4>
@@ -361,7 +361,7 @@ const ItemPage = () => {
                     )}
                 </div>
 
-                {/* 🌟 RIGHT COLUMN (Item Statistics) */}
+                {/*  RIGHT COLUMN (Item Statistics) */}
                 <div className="profile-right-col" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                     <div style={{ border: '2px solid #ffffff', borderRadius: '8px', backgroundColor: '#1a1a1a', padding: '25px', flex: 1, display: 'flex', flexDirection: 'column', marginTop: '12px' }}>
                         <h3 style={{ margin: '0 0 25px 0', fontSize: '1.4rem' }}>Item Statistics</h3>
@@ -375,7 +375,7 @@ const ItemPage = () => {
                                 </div>
                             </div>
                             
-                            {/* 🌟 ITEM'S SPECIFIC RATING */}
+                            {/* ITEM'S SPECIFIC RATING */}
                             <div style={{ backgroundColor: 'white', color: 'black', height: '60px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', border: '2px solid #000' }}>
                                 <div style={{ display: 'flex', width: '220px', alignItems: 'center' }}>
                                     <span style={{ width: '35px', textAlign: 'center', marginRight: '15px', fontSize: '1.4rem' }}>📦</span>
@@ -387,7 +387,7 @@ const ItemPage = () => {
                                 </div>
                             </div>
 
-                            {/* 🌟 SELLER'S OVERALL RATING */}
+                            {/* SELLER'S OVERALL RATING */}
                             <div style={{ backgroundColor: 'white', color: 'black', height: '60px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', border: '2px solid #000' }}>
                                 <div style={{ display: 'flex', width: '220px', alignItems: 'center' }}>
                                     <span style={{ width: '35px', textAlign: 'center', marginRight: '15px', fontSize: '1.4rem' }}>⭐</span>
@@ -399,7 +399,7 @@ const ItemPage = () => {
                                 </div>
                             </div>
                             
-                            {/* 🌟 DYNAMIC BORROWED STAT */}
+                            {/* DYNAMIC BORROWED STAT */}
                             <div style={{ backgroundColor: 'white', color: 'black', height: '60px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', border: '2px solid #000' }}>
                                 <div style={{ display: 'flex', width: '180px', alignItems: 'center' }}>
                                     <span style={{ width: '35px', textAlign: 'center', marginRight: '15px', fontSize: '1.4rem' }}>🤝</span>
