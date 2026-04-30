@@ -66,7 +66,7 @@ CREATE TABLE Items
     image_url VARCHAR(255) DEFAULT 'https://upload.wikimedia.org/wikipedia/commons/a/a3/Image-not-found.png',
     is_digital BIT DEFAULT 0,          
     file_url VARCHAR(MAX) NULL,        
-    borrow_duration INT DEFAULT 14,    -- 🌟 INTEGRATED: Custom borrow duration
+    borrow_duration INT DEFAULT 14,    --  Custom borrow duration
     created_at DATETIME DEFAULT GETDATE()
 );
 GO
@@ -107,7 +107,6 @@ CREATE TABLE Transactions
     buyer_id INT NOT NULL FOREIGN KEY REFERENCES Users(user_id),
     seller_id INT NOT NULL FOREIGN KEY REFERENCES Users(user_id),
     transaction_type VARCHAR(20) NOT NULL CHECK (transaction_type IN ('purchase', 'borrow')),
-    -- 🌟 UPDATED: Added 'returned' to the allowed transaction statuses
     status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'cancelled', 'returned')),
     quantity INT NOT NULL DEFAULT 1,
     transaction_date DATETIME DEFAULT GETDATE(),
