@@ -68,7 +68,7 @@ sql.connect(dbConfig)
         console.log("✅ SUCCESS! Connected via standard SQL Auth.");
 
         // ============================================================================
-        // 👤 AUTHENTICATION & USERS
+        //  AUTHENTICATION & USERS
         // ============================================================================
         app.post('/api/signup', upload.single('profilePic'), async (req, res) => {
             const { name, email, password, departmentId, description } = req.body;
@@ -146,7 +146,7 @@ sql.connect(dbConfig)
         });
 
         // ============================================================================
-        // 🛒 MARKETPLACE, ITEMS & DIGITAL VAULT
+        //  MARKETPLACE, ITEMS & DIGITAL VAULT
         // ============================================================================
         
         app.post('/api/items/upload', authenticateToken, upload.fields([{ name: 'itemImage', maxCount: 1 }, { name: 'itemFile', maxCount: 1 }]), async (req, res) => {
@@ -270,7 +270,7 @@ sql.connect(dbConfig)
         });
 
         // ====================================================================
-        // 🔄 TRANSACTIONS, MESSAGES, RATINGS
+        //  TRANSACTIONS, MESSAGES, RATINGS
         // ====================================================================
         app.post('/api/transactions/purchase', authenticateToken, async (req, res) => {
             try {
@@ -380,7 +380,7 @@ sql.connect(dbConfig)
         });
 
         // ==========================================
-        // 🔔 NOTIFICATIONS & HANDSHAKES
+        // NOTIFICATIONS & HANDSHAKES
         // ==========================================
         app.get('/api/notifications/:userId', authenticateToken, async (req, res) => {
             try {
@@ -421,7 +421,7 @@ sql.connect(dbConfig)
                     .execute('sp_ResolveHandshake');
                 
                 if (action === 'accept') {
-                    // 🌟 DYNAMIC DURATION LOGIC
+                    // DYNAMIC DURATION LOGIC
                     await pool.request().input('txId', sql.Int, transactionId).query(`
                         UPDATE Transactions 
                         SET return_date = DATEADD(day, ISNULL((SELECT borrow_duration FROM Items WHERE item_id = (SELECT item_id FROM Transactions WHERE transaction_id = @txId)), 14), GETDATE()) 
@@ -459,7 +459,7 @@ sql.connect(dbConfig)
             } catch (err) { res.status(500).json({ error: err.message }); }
         });
 
-        // 🌟 NEW: THE RETURN SYSTEM ROUTES
+        // THE RETURN SYSTEM ROUTES
         app.post('/api/transactions/return/initiate', authenticateToken, async (req, res) => {
             const { transactionId, sellerId, itemId } = req.body;
             try {
@@ -483,7 +483,7 @@ sql.connect(dbConfig)
         });
 
         // ============================================================================
-        // 📊 USER UTILITIES (STATS & HISTORIES)
+        //  USER UTILITIES (STATS & HISTORIES)
         // ============================================================================
         app.get('/api/users/:userId/active-ebooks', authenticateToken, async (req, res) => {
             try {
@@ -553,7 +553,7 @@ sql.connect(dbConfig)
         });
 
         // ==========================================
-        // 🚨 S.O.S EMERGENCY REQUESTS
+        //  S.O.S EMERGENCY REQUESTS
         // ==========================================
         app.get('/api/sos', async (req, res) => {
             try {
@@ -675,7 +675,30 @@ sql.connect(dbConfig)
 
         app.get('/', (req, res) => {
             res.set('Content-Type', 'text/plain');
-            res.send(`Welcome to the Secured UniThrift Backend API! The vault is locked and loaded.`);
+            res.send(`Welcome to the Secured UniThrift Backend API! The vault is locked and loaded.
+            ⠀⠀⠀⢀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠀⠀⠀⢠⡞⠋⠉⠳⡄⠀⠀⠀⠀⢠⠴⠒⠳⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⢀⡶⢶⡀⠀⠀⠀⠀⠀⠀⠀⢠⠏⠀⠀⠀⠀⢹⡄⠀⠀⣰⠋⠀⠀⠀⠸⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⣀⡼⠀⠀⠛⠒⠒⡦⠀⠀⠀⠀⡟⠀⠀⠀⠀⠀⠀⣷⠀⢰⡏⠀⠀⠀⠀⠀⣹⠀⠀⠀⠀⠀⠀⠀⠄⠀
+⣏⠁⠀⠀⠀⠀⠀⣼⠁⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⣹⠀⢸⠀⠀⠀⠀⠀⠀⢸⠁⠀⠀⠀⠁⠀⠀⠀⠀
+⠀⠉⡶⠀⠀⠀⠀⠈⡆⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⢽⠀⢸⠀⠀⠀⠀⠀⠀⣽⠀⠀⠀⠀⡀⠀⠀⠀⠀
+⠀⠀⢷⡤⠞⠉⠉⠉⠁⠀⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⢸⡆⢸⠀⠀⠀⠀⠀⢀⣟⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠸⣆⠀⠀⠀⠀⠀⠈⠛⠋⠀⠀⣤⠤⣤⣸⠧⡤⢤⡀⠀⠀⠀⠀⠂⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⡤⠆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠼⡄⣤⠤⡄⡔⡺⠃⡻⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡞⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢧⣌⣑⣗⠿⣱⠞⡩⠅⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⠏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⡖⡇⢸⠝⡄⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠣⠃⠘⢦⡳⠀⠀⠀⠀⠀⠀⠈
+⠀⠀⠀⠀⠀⠈⠀⠀⠀⣧⣠⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢈⣰⠀⠐⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⣀⣤⣾⠁⠈⣧⠰⣿⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⣤⣤⠀⠀⠀⠀⡿⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠐⡇⠀⠘⠁⠀⠘⠲⢤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠛⠋⠀⠀⠀⢠⠇⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠙⢦⣄⠀⣠⠤⠤⠄⠙⡇⠀⠀⠈⠷⠶⠋⠀⠀⠀⠀⠀⢀⣴⠋⠀⠄⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⣧⠀⢷⣀⡴⠂⢠⣇⡀⠀⠀⠀⠀⠀⠀⠀⣀⣀⣴⠟⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠳⠤⣤⣤⡴⠋⠀⠹⣽⣛⣛⣿⠋⠉⠉⢁⡴⢋⣳⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠳⣄⡀⠀⠀⠉⠁⠀⠀⠀⣠⡞⠓⠚⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠂⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠹⡍⠓⠦⢤⠤⠴⠶⣺⠟⠀⠀⠀⠀⠀⠀⠀⢀⣀⡀⡰⢲⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠓⠒⠛⠲⠶⠚⠁⠀⠀⠀⠀⢀⠀⠀⠀⠘⣏⠉⠁⠈⠲⣤
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡆⣀⡀⠀⡞⠁
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠁⠈⠙⠁⠀`);
         });
 
         const PORT = process.env.PORT || 5000;
