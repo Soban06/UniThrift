@@ -48,7 +48,7 @@ async function seedDatabase() {
             EXEC sp_MSforeachtable "ALTER TABLE ? WITH CHECK CHECK CONSTRAINT all";
 
             -- ==========================================
-            -- 🌱 START PLANTING DATA (WITH FORCED IDs)
+            --  START PLANTING DATA (WITH FORCED IDs)
             -- ==========================================
 
             PRINT 'Planting Departments...'
