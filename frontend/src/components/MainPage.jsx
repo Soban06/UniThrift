@@ -13,7 +13,7 @@ const MainPage = () => {
     const [departments, setDepartments] = useState([]);
     const [sosMessage, setSosMessage] = useState('');
     
-    // 🌟 NEW: The UI Lock State!
+    //  NEW: The UI Lock State
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const [sosForm, setSosForm] = useState({
@@ -90,7 +90,7 @@ const MainPage = () => {
         setShowDropdown(false);
     };
 
-    // --- 🌟 SOS SUBMIT LOGIC (NOW WITH UI LOCK AND INSTANT REDIRECT) ---
+    // ---  SOS SUBMIT LOGIC (NOW WITH UI LOCK AND INSTANT REDIRECT) ---
     const handleSosSubmit = async (e) => {
         e.preventDefault();
         
@@ -103,7 +103,7 @@ const MainPage = () => {
             return;
         }
 
-        setIsSubmitting(true); // 🌟 Lock the UI instantly!
+        setIsSubmitting(true); // Lock the UI instantly!
 
         try {
             const token = sessionStorage.getItem('token');
@@ -119,13 +119,13 @@ const MainPage = () => {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
-            // 🌟 Instant Redirect to the new SOS Page!
+            // Instant Redirect to the new SOS Page
             navigate(`/sos/${response.data.requestId}`);
 
         } catch (error) {
             console.error("SOS Submit Error", error);
             setSosMessage('❌ Failed to broadcast SOS.');
-            setIsSubmitting(false); // 🌟 Only unlock if it fails so they can try again
+            setIsSubmitting(false); // Only unlocking if it fails so they can try again
         }
     };
 
