@@ -19,7 +19,7 @@ const Login = () => {
         try {
             const response = await axios.post('http://localhost:5000/api/login', credentials);
             sessionStorage.setItem('user', JSON.stringify(response.data.user));
-            // 🌟 Save the JWT Token!
+            //  Save the JWT Token here
             sessionStorage.setItem('token', response.data.token);
             navigate('/');
         } catch (error) {
