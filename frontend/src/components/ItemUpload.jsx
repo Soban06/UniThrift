@@ -18,12 +18,12 @@ const ItemUpload = () => {
         categoryId: '1',
         listingType: 'sell', 
         quantity: 1,
-        borrowDuration: 14, // 🌟 Default 14 days
-        isDigital: false    // 🌟 Track if it's an E-Book
+        borrowDuration: 14, //  Default 14 days
+        isDigital: false    //  Track if it's an E-Book
     });
     
     const [itemImage, setItemImage] = useState(null);
-    const [itemFile, setItemFile] = useState(null); // 🌟 State for the Secure PDF
+    const [itemFile, setItemFile] = useState(null); // State for the Secure PDF
 
     useEffect(() => {
         const storedUser = sessionStorage.getItem('user');
@@ -123,21 +123,21 @@ const ItemUpload = () => {
                         </div>
                         <div className="input-group" style={{ flex: 1 }}>
                             <label>Stock Quantity:</label>
-                            {/* 🌟 Automatically force 1 quantity if it's a digital file */}
+                            {/* Automatically force 1 quantity if it's a digital file */}
                             <input type="number" name="quantity" value={formData.quantity} onChange={handleChange} min="1" required disabled={formData.isDigital} style={{ opacity: formData.isDigital ? 0.5 : 1 }} />
                         </div>
                     </div>
                     
                     <div className="input-group">
                         <label>Listing Type:</label>
-                        {/* 🌟 Automatically force 'borrow' if it's a digital file */}
+                        {/* Automatically force 'borrow' if it's a digital file */}
                         <select name="listingType" value={formData.listingType} onChange={handleChange} required disabled={formData.isDigital} style={{ opacity: formData.isDigital ? 0.5 : 1 }}>
                             <option value="sell">Sell</option>
                             <option value="borrow">Lend/Borrow</option>
                         </select>
                     </div>
 
-                    {/* 🌟 CONDITIONAL BORROW DURATION */}
+                    {/* CONDITIONAL BORROW DURATION */}
                     {formData.listingType === 'borrow' && (
                         <div className="input-group" style={{ padding: '10px', border: '1px solid #4A90E2', backgroundColor: '#1a1a1a', borderRadius: '4px' }}>
                             <label style={{ color: '#4A90E2' }}>Borrow Duration (Days):</label>
@@ -146,7 +146,7 @@ const ItemUpload = () => {
                         </div>
                     )}
 
-                    {/* 🌟 DIGITAL UPLOAD TOGGLE */}
+                    {/* DIGITAL UPLOAD TOGGLE */}
                     <div className="input-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '10px', marginTop: '10px', padding: '10px', backgroundColor: 'rgba(255, 215, 0, 0.05)', border: '1px solid #FFD700', borderRadius: '4px' }}>
                         <input type="checkbox" name="isDigital" checked={formData.isDigital} onChange={(e) => {
                             handleChange(e);
@@ -155,7 +155,7 @@ const ItemUpload = () => {
                         <label style={{ margin: 0, color: '#FFD700', fontWeight: 'bold', cursor: 'pointer' }}>Is this a Digital E-Book (PDF)?</label>
                     </div>
 
-                    {/* 🌟 CONDITIONAL SECURE PDF INPUT */}
+                    {/* CONDITIONAL SECURE PDF INPUT */}
                     {formData.isDigital && (
                         <div className="input-group" style={{ padding: '15px', border: '2px dashed #FFD700', backgroundColor: '#1a1a1a', marginTop: '10px' }}>
                             <label style={{ color: '#FFD700', fontWeight: 'bold' }}>Upload Secure PDF:</label>
