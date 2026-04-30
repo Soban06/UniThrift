@@ -131,7 +131,7 @@ const NotificationCenter = ({ currentUserId }) => {
         }
     };
 
-    // 🌟 CONFIRM PHYSICAL RETURN
+    //  CONFIRM PHYSICAL RETURN
     const handleResolveReturn = async (transactionId) => {
         try {
             const token = sessionStorage.getItem('token');
@@ -167,7 +167,7 @@ const NotificationCenter = ({ currentUserId }) => {
                         <div style={{ padding: '20px', overflowY: 'auto', flex: 1, color: 'white' }}>
                             {totalPending === 0 && activeEbooks.length === 0 && <p style={{ textAlign: 'center', color: '#888', fontStyle: 'italic', marginTop: '40px' }}>No pending notifications or active borrows.</p>}
 
-                            {/* 🌟 RETURN CONFIRMATIONS (LENDER SEES THIS) */}
+                            {/*  RETURN CONFIRMATIONS (LENDER will see this) */}
                             {returnHandshakes.length > 0 && (
                                 <div style={{ marginBottom: '30px' }}>
                                     <h3 style={{ borderBottom: '2px solid #555', paddingBottom: '10px', color: '#4CAF50' }}>RETURN CONFIRMATIONS</h3>
@@ -184,7 +184,7 @@ const NotificationCenter = ({ currentUserId }) => {
                                 </div>
                             )}
 
-                            {/* 🌟 MY DIGITAL E-BOOKS SHELF */}
+                            {/*  DIGITAL E-BOOKS SHELF for user */}
                             {activeEbooks.length > 0 && (
                                 <div style={{ marginBottom: '30px', padding: '20px', border: '2px solid #4A90E2', backgroundColor: '#0a0a0a', borderRadius: '8px' }}>
                                     <h3 style={{ color: '#4A90E2', margin: '0 0 15px 0', fontSize: '1.2rem', textTransform: 'uppercase', borderBottom: '1px solid #4A90E2', paddingBottom: '10px' }}>📖 Active Digital Borrows</h3>
@@ -240,7 +240,7 @@ const NotificationCenter = ({ currentUserId }) => {
                                 </div>
                             )}
 
-                            {/* MY ACTIVE S.O.S */}
+                            {/*  ACTIVE S.O.S FOR USER*/}
                             {myActiveSos.length > 0 && (
                                 <div style={{ marginBottom: '30px' }}>
                                     <h3 style={{ borderBottom: '2px solid #555', paddingBottom: '10px', color: '#FFD700' }}>MY ACTIVE S.O.S</h3>
