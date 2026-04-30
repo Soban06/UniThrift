@@ -4,7 +4,7 @@ import axios from 'axios';
 import './ChatPage.css';
 
 const ChatPage = () => {
-    // 🌟 Look for multiple parameter names just in case they differ in App.js!
+    // Look for multiple parameter names just in case they differ in App.js!
     const params = useParams();
     const passedItemId = params.initialItemId || params.itemId;
     const passedSellerId = params.initialSellerId || params.sellerId;
@@ -29,7 +29,7 @@ const ChatPage = () => {
         setCurrentUser(userObj);
         
         fetchContacts(userObj);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
     }, [navigate, passedSellerId, passedItemId]);
 
     useEffect(() => {
@@ -53,7 +53,7 @@ const ChatPage = () => {
                     setContacts(response.data);
                     handleSelectContact(existingContact, user);
                 } else {
-                    // It's a new conversation, force them into the list!
+                    // It's a new conversation here so we force them into the list
                     const newTempContact = {
                         contact_id: passedSellerId,
                         full_name: "New Conversation",
