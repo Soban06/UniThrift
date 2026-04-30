@@ -12,7 +12,7 @@ const SosPage = () => {
     const [loading, setLoading] = useState(true);
     const [message, setMessage] = useState('');
     
-    // 🌟 NEW: UI Lock state to prevent double-clicks or navigating away mid-request
+    // UI Lock state to prevent double-clicks or navigating away mid-request
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
@@ -32,7 +32,7 @@ const SosPage = () => {
         fetchSosData();
     }, [sosId]);
 
-    // 🌟 SEND S.O.S HANDSHAKE OFFER
+    // SEND S.O.S HANDSHAKE OFFER
     const handleAcceptLend = async () => {
         if (!currentUserId) return alert("You must be logged in to help!");
         if (isSubmitting) return; // Prevent double-clicks
@@ -63,7 +63,7 @@ const SosPage = () => {
         }
     };
 
-    // 🌟 CANCEL S.O.S LOGIC (For the Owner)
+    //CANCEL S.O.S LOGIC (For the Owner)
     const handleCancelRequest = async () => {
         if (isSubmitting) return; // Prevent double-clicks
 
@@ -110,7 +110,7 @@ const SosPage = () => {
 
             <div className="profile-content-grid" style={{ maxWidth: '900px', margin: '0 auto', display: 'block' }}>
                 
-                {/* 🌟 MAIN SOS BLOCK */}
+                {/* MAIN SOS BLOCK */}
                 <div className="history-container" style={{ border: '2px solid #f44336', borderRadius: '8px', backgroundColor: '#1a1a1a', padding: '30px', marginTop: '30px' }}>
                     
                     <h2 style={{ fontSize: '2.5rem', margin: '0 0 10px 0', color: 'white', textTransform: 'uppercase' }}>
