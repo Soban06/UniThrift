@@ -72,7 +72,7 @@ const ProfilePage = () => {
         fetchProfileData();
     }, [urlUserId, navigate]);
 
-    // 🌟 NEW: INITIATE PHYSICAL RETURN HANDSHAKE
+    // INITIATE PHYSICAL RETURN HANDSHAKE
     const initiateReturn = async (item) => {
         try {
             const token = sessionStorage.getItem('token');
@@ -127,7 +127,7 @@ const ProfilePage = () => {
                                 const isDeleted = status === 'deleted';
                                 const itemId = item.item_id;
 
-                                // 🌟 EXACT DATE FIX
+                                // EXACT DATE FIX
                                 const formattedDate = new Date(item.transaction_date).toLocaleString();
 
                                 // Is this a physical item that needs to be returned?
@@ -151,7 +151,7 @@ const ProfilePage = () => {
                                             <div style={{ color: '#aaa', fontSize: '0.95rem' }}>
                                                 {activeModal === 'purchases' || activeModal === 'borrows' ? `Acquired: ${formattedDate}` : `Status: ${status.toUpperCase()}`}
                                                 
-                                                {/* 🌟 SHOW EXPIRES DATE */}
+                                                {/* SHOW EXPIRES DATE */}
                                                 {activeModal === 'borrows' && item.return_date && item.tx_status !== 'returned' && (
                                                     <div style={{ color: '#FF4500', marginTop: '5px', fontWeight: 'bold' }}>
                                                         Must Return By: {new Date(item.return_date).toLocaleString()}
@@ -163,7 +163,7 @@ const ProfilePage = () => {
                                             {isDeleted && <span style={{ color: '#f44336', fontWeight: 'bold', fontSize: '1rem', border: '1px solid #f44336', padding: '5px 10px' }}>DELETED</span>}
                                             {item.tx_status === 'returned' && <span style={{ color: '#4CAF50', fontWeight: 'bold', fontSize: '1rem', border: '1px solid #4CAF50', padding: '5px 10px' }}>RETURNED</span>}
                                             
-                                            {/* 🌟 RETURN BUTTON */}
+                                            {/* RETURN BUTTON */}
                                             {isPhysicalBorrow && (
                                                 <button 
                                                     onClick={(e) => { e.stopPropagation(); initiateReturn(item); }} 
@@ -216,7 +216,7 @@ const ProfilePage = () => {
                     </div>
                 </div>
 
-                {/* 🌟 MIDDLE COLUMN (Interactive History Links) */}
+                {/* MIDDLE COLUMN (Interactive History Links) */}
                 <div className="profile-mid-col">
                     <div className="history-container" style={{ border: '1px solid #555', borderRadius: '8px', backgroundColor: '#222', padding: '25px', marginTop: '12px' }}>
                         
@@ -257,7 +257,7 @@ const ProfilePage = () => {
                     )}
                 </div>
 
-                {/* 🌟 RIGHT COLUMN (Dynamic Statistics) */}
+                {/* RIGHT COLUMN (Dynamic Statistics) */}
                 <div className="profile-right-col" style={{ flex: 1 }}>
                     <div style={{ border: '1px solid #ffff', borderRadius: '8px', backgroundColor: '#1a1a1a', padding: '25px', marginTop: '12px' }}>
                         <h3 style={{ margin: '0 0 25px 0', fontSize: '1.4rem' }}>Statistics</h3>
@@ -303,7 +303,7 @@ const ProfilePage = () => {
 
             </div>
 
-            {/* 🌟 MOUNT THE MODAL HERE */}
+            {/* MOUNT THE MODAL HERE */}
             {activeModal && renderHistoryModal()}
 
         </div>
