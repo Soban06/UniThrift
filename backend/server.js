@@ -12,24 +12,30 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Make the 'uploads' folder publicly accessible
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), { maxAge: '1d' }));
 
-// Multer Configuration for images
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        if (!fs.existsSync('uploads/')) {
-            fs.mkdirSync('uploads/');
+        if (file.fieldname === 'itemFile') {
+            const dir = 'secure_vault/';
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+            cb(null, dir);
+        } else {
+            const dir = 'uploads/';
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+            cb(null, dir);
         }
-        cb(null, 'uploads/');
     },
     filename: (req, file, cb) => {
-        cb(null, Date.now() + '-' + file.originalname);
+        if (file.fieldname === 'itemFile') {
+            cb(null, 'DOC-' + Date.now() + path.extname(file.originalname));
+        } else {
+            cb(null, Date.now() + '-' + file.originalname);
+        }
     }
 });
 const upload = multer({ storage: storage });
 
-// SQL Configuration
 const dbConfig = {
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
@@ -42,9 +48,6 @@ const dbConfig = {
     }
 };
 
-// ============================================================================
-// 🛡️ SECURITY MIDDLEWARE
-// ============================================================================
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; 
@@ -143,19 +146,62 @@ sql.connect(dbConfig)
         });
 
         // ============================================================================
-        // 🛒 MARKETPLACE & ITEMS
+        // 🛒 MARKETPLACE, ITEMS & DIGITAL VAULT
         // ============================================================================
-        app.post('/api/items/upload', authenticateToken, upload.single('itemImage'), async (req, res) => {
+        
+        app.post('/api/items/upload', authenticateToken, upload.fields([{ name: 'itemImage', maxCount: 1 }, { name: 'itemFile', maxCount: 1 }]), async (req, res) => {
             try {
-                const { sellerId, title, description, price, listingType, departmentId, categoryId, quantity } = req.body;
-                const finalImageUrl = req.file ? `http://localhost:5000/uploads/${req.file.filename}` : '/default.png';
+                const { sellerId, title, description, price, listingType, departmentId, categoryId, quantity, isDigital, borrowDuration } = req.body;
+                
+                const finalImageUrl = (req.files && req.files['itemImage']) ? `http://localhost:5000/uploads/${req.files['itemImage'][0].filename}` : '/default.png';
+                const finalFileUrl = (req.files && req.files['itemFile']) ? `secure_vault/${req.files['itemFile'][0].filename}` : null;
+                const digitalFlag = isDigital === 'true' || isDigital === true ? 1 : 0;
+                const duration = borrowDuration ? parseInt(borrowDuration) : 14;
 
                 await pool.request()
-                    .input('sellerId', sql.Int, sellerId).input('title', sql.VarChar, title).input('desc', sql.VarChar, description || '').input('price', sql.Decimal(10, 2), price).input('type', sql.VarChar, listingType).input('deptId', sql.Int, departmentId).input('catId', sql.Int, categoryId).input('imgUrl', sql.VarChar, finalImageUrl).input('qty', sql.Int, quantity || 1)
-                    .query(`INSERT INTO Items (seller_id, title, item_description, price, listing_type, department_id, category_id, image_url, status, stock_quantity) VALUES (@sellerId, @title, @desc, @price, @type, @deptId, @catId, @imgUrl, 'available', @qty)`);
+                    .input('sellerId', sql.Int, sellerId).input('title', sql.VarChar, title).input('desc', sql.VarChar, description || '')
+                    .input('price', sql.Decimal(10, 2), price).input('type', sql.VarChar, listingType).input('deptId', sql.Int, departmentId)
+                    .input('catId', sql.Int, categoryId).input('imgUrl', sql.VarChar, finalImageUrl).input('qty', sql.Int, quantity || 1)
+                    .input('isDigital', sql.Bit, digitalFlag).input('fileUrl', sql.VarChar, finalFileUrl).input('duration', sql.Int, duration)
+                    .query(`
+                        INSERT INTO Items (seller_id, title, item_description, price, listing_type, department_id, category_id, image_url, status, stock_quantity, is_digital, file_url, borrow_duration) 
+                        VALUES (@sellerId, @title, @desc, @price, @type, @deptId, @catId, @imgUrl, 'available', @qty, @isDigital, @fileUrl, @duration)
+                    `);
                 res.status(200).json({ message: "Item uploaded successfully!" });
             } catch (err) {
+                console.error(err);
                 res.status(500).json({ error: "Database upload failed." });
+            }
+        });
+
+        app.get('/api/vault/:txId', authenticateToken, async (req, res) => {
+            try {
+                const tx = await pool.request()
+                    .input('txId', sql.Int, req.params.txId)
+                    .input('userId', sql.Int, req.user.id)
+                    .query(`
+                        SELECT t.*, i.file_url 
+                        FROM Transactions t 
+                        JOIN Items i ON t.item_id = i.item_id 
+                        WHERE t.transaction_id = @txId AND t.buyer_id = @userId AND t.status = 'completed'
+                    `);
+
+                if (tx.recordset.length === 0) return res.status(403).json({ error: "Access Denied." });
+
+                const item = tx.recordset[0];
+                if (item.return_date && new Date() > new Date(item.return_date)) {
+                    return res.status(403).json({ error: "Access Expired. Please re-borrow." });
+                }
+
+                const filePath = path.join(__dirname, item.file_url);
+                if (fs.existsSync(filePath)) {
+                    res.contentType("application/pdf");
+                    fs.createReadStream(filePath).pipe(res);
+                } else {
+                    res.status(404).send("File missing.");
+                }
+            } catch (err) {
+                res.status(500).json({ error: err.message });
             }
         });
 
@@ -174,7 +220,6 @@ sql.connect(dbConfig)
             }
         });
 
-        // 🌟 SOFT DELETE IMPLEMENTATION
         app.delete('/api/items/:itemId', authenticateToken, async (req, res) => {
             try {
                 const { itemId } = req.params;
@@ -182,7 +227,6 @@ sql.connect(dbConfig)
                 const checkOwnership = await pool.request().input('itemId', sql.Int, itemId).input('userId', sql.Int, userId).query('SELECT * FROM Items WHERE item_id = @itemId AND seller_id = @userId');
                 if (checkOwnership.recordset.length === 0) return res.status(403).json({ message: "Unauthorized." });
 
-                // Updates status instead of completely dropping the row so history isn't broken
                 await pool.request().input('itemId', sql.Int, itemId).query("UPDATE Items SET status = 'deleted' WHERE item_id = @itemId");
                 res.json({ message: "Item deleted successfully!" });
             } catch (err) {
@@ -335,100 +379,6 @@ sql.connect(dbConfig)
             }
         });
 
-        // ============================================================================
-        // 📊 USER UTILITIES (STATS & HISTORIES)
-        // ============================================================================
-        app.post('/api/wishlist/toggle', authenticateToken, async (req, res) => {
-            try {
-                const check = await pool.request().input('userId', sql.Int, req.body.userId).input('itemId', sql.Int, req.body.itemId).query('SELECT * FROM Wishlist WHERE user_id = @userId AND item_id = @itemId');
-                if (check.recordset.length > 0) {
-                    await pool.request().input('userId', sql.Int, req.body.userId).input('itemId', sql.Int, req.body.itemId).query('DELETE FROM Wishlist WHERE user_id = @userId AND item_id = @itemId');
-                    res.status(200).json({ wishlisted: false });
-                } else {
-                    await pool.request().input('userId', sql.Int, req.body.userId).input('itemId', sql.Int, req.body.itemId).query('INSERT INTO Wishlist (user_id, item_id) VALUES (@userId, @itemId)');
-                    res.status(200).json({ wishlisted: true });
-                }
-            } catch (err) {
-                res.status(500).json({ error: "Failed to update wishlist" });
-            }
-        });
-
-        app.get('/api/users/:userId/wishlist', async (req, res) => {
-            try {
-                const result = await pool.request().input('userId', sql.Int, req.params.userId).query(`SELECT i.*, u.full_name as seller_name, d.department_name as dept_name FROM Items i JOIN Wishlist w ON i.item_id = w.item_id JOIN Users u ON i.seller_id = u.user_id JOIN Departments d ON i.department_id = d.department_id WHERE w.user_id = @userId ORDER BY w.created_at DESC`);
-                res.status(200).json(result.recordset);
-            } catch (err) {
-                res.status(500).json({ error: "Failed to fetch wishlist." });
-            }
-        });
-
-        // 🌟 CALCULATE PUBLIC PROFILE STATS
-        app.get('/api/users/:id/public', async (req, res) => {
-            try {
-                const result = await pool.request().input('userId', sql.Int, req.params.id).query(`
-                    SELECT 
-                        u.user_id, u.full_name, u.profile_pic_url, u.reliability_score, u.created_at, u.user_description,
-                        ISNULL((SELECT SUM(quantity) FROM Transactions WHERE seller_id = @userId AND status = 'completed' AND transaction_type = 'purchase'), 0) AS total_sold,
-                        ISNULL((SELECT SUM(quantity) FROM Transactions WHERE buyer_id = @userId AND status = 'completed' AND transaction_type = 'purchase'), 0) AS total_bought,
-                        ISNULL((SELECT SUM(quantity) FROM Transactions WHERE buyer_id = @userId AND status IN ('completed', 'pending') AND transaction_type = 'borrow'), 0) AS total_borrowed
-                    FROM Users u WHERE user_id = @userId
-                `);
-                if (result.recordset.length === 0) return res.status(404).json({ error: "User not found" });
-                res.json(result.recordset[0]);
-            } catch (err) {
-                res.status(500).json({ error: err.message });
-            }
-        });
-
-        // 🌟 FETCH LISTINGS
-        app.get('/api/users/:id/listings', async (req, res) => {
-            try {
-                const result = await pool.request().input('userId', sql.Int, req.params.id).query(`SELECT item_id, title, price, listing_type, status AS item_status FROM Items WHERE seller_id = @userId AND listing_type != 'sos_borrow' ORDER BY created_at DESC`);
-                res.json(result.recordset);
-            } catch (err) {
-                res.status(500).json({ error: err.message });
-            }
-        });
-
-        // 🌟 FETCH PURCHASE HISTORY
-        app.get('/api/users/:id/purchases', authenticateToken, async (req, res) => {
-            try {
-                const result = await pool.request().input('userId', sql.Int, req.params.id).query(`
-                    SELECT t.transaction_id, i.item_id, i.title, t.quantity, t.transaction_date, t.status AS tx_status, i.status AS item_status 
-                    FROM Transactions t JOIN Items i ON t.item_id = i.item_id 
-                    WHERE t.buyer_id = @userId AND t.transaction_type = 'purchase' 
-                    ORDER BY t.transaction_date DESC
-                `);
-                res.json(result.recordset);
-            } catch (err) {
-                res.status(500).json({ error: err.message });
-            }
-        });
-
-        // 🌟 FETCH BORROW HISTORY
-        app.get('/api/users/:id/borrows', authenticateToken, async (req, res) => {
-            try {
-                const result = await pool.request().input('userId', sql.Int, req.params.id).query(`
-                    SELECT t.transaction_id, i.item_id, i.title, t.quantity, t.transaction_date, t.status AS tx_status, i.status AS item_status 
-                    FROM Transactions t JOIN Items i ON t.item_id = i.item_id 
-                    WHERE t.buyer_id = @userId AND t.transaction_type = 'borrow' 
-                    ORDER BY t.transaction_date DESC
-                `);
-                res.json(result.recordset);
-            } catch (err) {
-                res.status(500).json({ error: err.message });
-            }
-        });
-
-        app.get('/api/departments', async (req, res) => {
-            try {
-                const result = await pool.request().query('SELECT * FROM Departments');
-                res.status(200).json(result.recordset);
-            } catch (err) {
-                res.status(500).json({ error: "Failed to fetch departments." });
-            }
-        });
-
         // ==========================================
         // 🔔 NOTIFICATIONS & HANDSHAKES
         // ==========================================
@@ -471,48 +421,135 @@ sql.connect(dbConfig)
                     .execute('sp_ResolveHandshake');
                 
                 if (action === 'accept') {
+                    // 🌟 DYNAMIC DURATION LOGIC
+                    await pool.request().input('txId', sql.Int, transactionId).query(`
+                        UPDATE Transactions 
+                        SET return_date = DATEADD(day, ISNULL((SELECT borrow_duration FROM Items WHERE item_id = (SELECT item_id FROM Transactions WHERE transaction_id = @txId)), 14), GETDATE()) 
+                        WHERE transaction_id = @txId AND transaction_type = 'borrow'
+                    `);
+
                     const txResult = await pool.request().input('txId', sql.Int, transactionId).query("SELECT buyer_id, seller_id, item_id FROM Transactions WHERE transaction_id = @txId");
                     if (txResult.recordset.length > 0) {
                         const { buyer_id, seller_id, item_id } = txResult.recordset[0];
-                        await pool.request()
-                            .input('buyer', sql.Int, buyer_id).input('seller', sql.Int, seller_id).input('item', sql.Int, item_id).input('tx', sql.Int, transactionId)
+                        await pool.request().input('buyer', sql.Int, buyer_id).input('seller', sql.Int, seller_id).input('item', sql.Int, item_id).input('tx', sql.Int, transactionId)
                             .query(`INSERT INTO Notifications (user_id, sender_id, item_id, transaction_id, notification_type, message_text) VALUES (@buyer, @seller, @item, @tx, 'rating_request', 'Transaction complete! Please rate your experience.');`);
                     }
                 }
 
                 if (action === 'accept' && sosId) {
                     await pool.request().input('sosId', sql.Int, sosId).query("UPDATE SOS_Requests SET status = 'fulfilled' WHERE request_id = @sosId");
-
                     const txResult = await pool.request().input('txId', sql.Int, transactionId).query("SELECT buyer_id, seller_id FROM Transactions WHERE transaction_id = @txId");
-                    
                     if (txResult.recordset.length > 0) {
-                        const buyerId = txResult.recordset[0].buyer_id;
-                        const sellerId = txResult.recordset[0].seller_id;
-                        await pool.request()
-                            .input('asker', sql.Int, buyerId).input('lender', sql.Int, sellerId).input('msg', sql.NVarChar, `🚨 S.O.S ACCEPTED: I have accepted your offer to fulfill my request! Let's arrange a meetup.`)
+                        const buyerId = txResult.recordset[0].buyer_id; const sellerId = txResult.recordset[0].seller_id;
+                        await pool.request().input('asker', sql.Int, buyerId).input('lender', sql.Int, sellerId).input('msg', sql.NVarChar, `🚨 S.O.S ACCEPTED: I have accepted your offer to fulfill my request! Let's arrange a meetup.`)
                             .query(`INSERT INTO Messages (sender_id, receiver_id, item_id, content) VALUES (@asker, @lender, NULL, @msg); INSERT INTO Notifications (user_id, sender_id, notification_type, message_text) VALUES (@lender, @asker, 'message', 'Your S.O.S offer was accepted! Check your messages.');`);
                     }
-
-                    await pool.request()
-                        .input('sosId', sql.Int, sosId)
-                        .input('acceptedTxId', sql.Int, transactionId)
+                    await pool.request().input('sosId', sql.Int, sosId).input('acceptedTxId', sql.Int, transactionId)
                         .query(`
                             SELECT n.transaction_id, n.sender_id, t.item_id, t.quantity INTO #OtherOffers FROM Notifications n JOIN Transactions t ON n.transaction_id = t.transaction_id WHERE n.sos_id = @sosId AND n.notification_type = 'handshake_request' AND n.transaction_id != @acceptedTxId AND t.status = 'pending';
                             UPDATE Transactions SET status = 'cancelled' WHERE transaction_id IN (SELECT transaction_id FROM #OtherOffers);
                             UPDATE Items SET stock_quantity = stock_quantity + O.quantity FROM Items I JOIN #OtherOffers O ON I.item_id = O.item_id;
                             INSERT INTO Notifications (user_id, item_id, transaction_id, notification_type, message_text) SELECT sender_id, item_id, transaction_id, 'handshake_rejected', 'Your S.O.S offer was declined because the request was fulfilled by someone else.' FROM #OtherOffers;
-                            DELETE FROM Notifications WHERE sos_id = @sosId AND notification_type = 'handshake_request';
-                            DELETE FROM Notifications WHERE sos_id = @sosId AND notification_type = 'sos_alert';
-                            DROP TABLE #OtherOffers;
+                            DELETE FROM Notifications WHERE sos_id = @sosId AND notification_type = 'handshake_request'; DELETE FROM Notifications WHERE sos_id = @sosId AND notification_type = 'sos_alert'; DROP TABLE #OtherOffers;
                         `);
                 } else if (action === 'reject' && sosId) {
                     await pool.request().input('txId', sql.Int, transactionId).query("UPDATE Notifications SET message_text = 'Your offer to help was rejected.' WHERE transaction_id = @txId AND notification_type = 'handshake_rejected'");
                 }
-
                 res.status(200).json({ message: `Handshake ${action}ed.` });
+            } catch (err) { res.status(500).json({ error: err.message }); }
+        });
+
+        // 🌟 NEW: THE RETURN SYSTEM ROUTES
+        app.post('/api/transactions/return/initiate', authenticateToken, async (req, res) => {
+            const { transactionId, sellerId, itemId } = req.body;
+            try {
+                await pool.request()
+                    .input('tx', sql.Int, transactionId).input('seller', sql.Int, sellerId).input('item', sql.Int, itemId).input('buyer', sql.Int, req.user.id)
+                    .query(`INSERT INTO Notifications (user_id, sender_id, item_id, transaction_id, notification_type, message_text) VALUES (@seller, @buyer, @item, @tx, 'return_handshake', 'The borrower states they returned this physical item. Confirm receipt to close the transaction.');`);
+                res.json({ message: 'Return initiated.'});
+            } catch (error) { res.status(500).json({ error: error.message }); }
+        });
+
+        app.post('/api/transactions/return/resolve', authenticateToken, async (req, res) => {
+            const { transactionId } = req.body;
+            try {
+                await pool.request().input('txId', sql.Int, transactionId).query(`
+                    UPDATE Transactions SET status = 'returned' WHERE transaction_id = @txId;
+                    UPDATE Items SET stock_quantity = stock_quantity + (SELECT quantity FROM Transactions WHERE transaction_id = @txId) WHERE item_id = (SELECT item_id FROM Transactions WHERE transaction_id = @txId);
+                    DELETE FROM Notifications WHERE transaction_id = @txId AND notification_type = 'return_handshake';
+                `);
+                res.json({ message: 'Item returned successfully.'});
+            } catch (error) { res.status(500).json({ error: error.message }); }
+        });
+
+        // ============================================================================
+        // 📊 USER UTILITIES (STATS & HISTORIES)
+        // ============================================================================
+        app.get('/api/users/:userId/active-ebooks', authenticateToken, async (req, res) => {
+            try {
+                const result = await pool.request().input('userId', sql.Int, req.params.userId).query(`SELECT t.transaction_id, i.title, t.return_date FROM Transactions t JOIN Items i ON t.item_id = i.item_id WHERE t.buyer_id = @userId AND t.status = 'completed' AND i.is_digital = 1 AND (t.return_date IS NULL OR t.return_date > GETDATE())`);
+                res.json(result.recordset);
+            } catch(err) { res.status(500).json({error: err.message}); }
+        });
+
+        app.post('/api/wishlist/toggle', authenticateToken, async (req, res) => {
+            try {
+                const check = await pool.request().input('userId', sql.Int, req.body.userId).input('itemId', sql.Int, req.body.itemId).query('SELECT * FROM Wishlist WHERE user_id = @userId AND item_id = @itemId');
+                if (check.recordset.length > 0) {
+                    await pool.request().input('userId', sql.Int, req.body.userId).input('itemId', sql.Int, req.body.itemId).query('DELETE FROM Wishlist WHERE user_id = @userId AND item_id = @itemId');
+                    res.status(200).json({ wishlisted: false });
+                } else {
+                    await pool.request().input('userId', sql.Int, req.body.userId).input('itemId', sql.Int, req.body.itemId).query('INSERT INTO Wishlist (user_id, item_id) VALUES (@userId, @itemId)');
+                    res.status(200).json({ wishlisted: true });
+                }
             } catch (err) {
-                res.status(500).json({ error: err.message });
+                res.status(500).json({ error: "Failed to update wishlist" });
             }
+        });
+
+        app.get('/api/users/:userId/wishlist', async (req, res) => {
+            try {
+                const result = await pool.request().input('userId', sql.Int, req.params.userId).query(`SELECT i.*, u.full_name as seller_name, d.department_name as dept_name FROM Items i JOIN Wishlist w ON i.item_id = w.item_id JOIN Users u ON i.seller_id = u.user_id JOIN Departments d ON i.department_id = d.department_id WHERE w.user_id = @userId ORDER BY w.created_at DESC`);
+                res.status(200).json(result.recordset);
+            } catch (err) {
+                res.status(500).json({ error: "Failed to fetch wishlist." });
+            }
+        });
+
+        app.get('/api/users/:id/public', async (req, res) => {
+            try {
+                const result = await pool.request().input('userId', sql.Int, req.params.id).query(`SELECT u.user_id, u.full_name, u.profile_pic_url, u.reliability_score, u.created_at, u.user_description, ISNULL((SELECT SUM(quantity) FROM Transactions WHERE seller_id = @userId AND status = 'completed' AND transaction_type = 'purchase'), 0) AS total_sold, ISNULL((SELECT SUM(quantity) FROM Transactions WHERE buyer_id = @userId AND status = 'completed' AND transaction_type = 'purchase'), 0) AS total_bought, ISNULL((SELECT SUM(quantity) FROM Transactions WHERE buyer_id = @userId AND status IN ('completed', 'pending', 'returned') AND transaction_type = 'borrow'), 0) AS total_borrowed FROM Users u WHERE user_id = @userId`);
+                if (result.recordset.length === 0) return res.status(404).json({ error: "User not found" });
+                res.json(result.recordset[0]);
+            } catch (err) { res.status(500).json({ error: err.message }); }
+        });
+
+        app.get('/api/users/:id/listings', async (req, res) => {
+            try {
+                const result = await pool.request().input('userId', sql.Int, req.params.id).query(`SELECT item_id, title, price, listing_type, status AS item_status FROM Items WHERE seller_id = @userId AND listing_type != 'sos_borrow' ORDER BY created_at DESC`);
+                res.json(result.recordset);
+            } catch (err) { res.status(500).json({ error: err.message }); }
+        });
+
+        app.get('/api/users/:id/purchases', authenticateToken, async (req, res) => {
+            try {
+                const result = await pool.request().input('userId', sql.Int, req.params.id).query(`SELECT t.transaction_id, i.item_id, i.title, t.quantity, t.transaction_date, t.status AS tx_status, i.status AS item_status, i.is_digital, i.seller_id FROM Transactions t JOIN Items i ON t.item_id = i.item_id WHERE t.buyer_id = @userId AND t.transaction_type = 'purchase' ORDER BY t.transaction_date DESC`);
+                res.json(result.recordset);
+            } catch (err) { res.status(500).json({ error: err.message }); }
+        });
+
+        app.get('/api/users/:id/borrows', authenticateToken, async (req, res) => {
+            try {
+                const result = await pool.request().input('userId', sql.Int, req.params.id).query(`SELECT t.transaction_id, i.item_id, i.title, t.quantity, t.transaction_date, t.return_date, t.status AS tx_status, i.status AS item_status, i.is_digital, i.seller_id FROM Transactions t JOIN Items i ON t.item_id = i.item_id WHERE t.buyer_id = @userId AND t.transaction_type = 'borrow' ORDER BY t.transaction_date DESC`);
+                res.json(result.recordset);
+            } catch (err) { res.status(500).json({ error: err.message }); }
+        });
+
+        app.get('/api/departments', async (req, res) => {
+            try {
+                const result = await pool.request().query('SELECT * FROM Departments');
+                res.status(200).json(result.recordset);
+            } catch (err) { res.status(500).json({ error: "Failed to fetch departments." }); }
         });
 
         // ==========================================
@@ -638,30 +675,7 @@ sql.connect(dbConfig)
 
         app.get('/', (req, res) => {
             res.set('Content-Type', 'text/plain');
-            res.send(`Welcome to the Secured UniThrift Backend API! The vault is locked and loaded.
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡞⠋⠉⠳⡄⠀⠀⠀⠀⢠⠴⠒⠳⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⢀⡶⢶⡀⠀⠀⠀⠀⠀⠀⠀⢠⠏⠀⠀⠀⠀⢹⡄⠀⠀⣰⠋⠀⠀⠀⠸⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⣀⡼⠀⠀⠛⠒⠒⡦⠀⠀⠀⠀⡟⠀⠀⠀⠀⠀⠀⣷⠀⢰⡏⠀⠀⠀⠀⠀⣹⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⣏⠁⠀⠀⠀⠀⠀⣼⠁⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⣹⠀⢸⠀⠀⠀⠀⠀⠀⢸⠁⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠉⡶⠀⠀⠀⠀⠈⡆⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⢽⠀⢸⠀⠀⠀⠀⠀⠀⣽⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⢷⡤⠞⠉⠉⠉⠁⠀⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⢸⡆⢸⠀⠀⠀⠀⠀⢀⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠸⣆⠀⠀⠀⠀⠀⠈⠛⠋⠀⠀⢀⠄⡀⣸⠃⡀⠠⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⡤⠆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠴⠀⠀⠠⠀⠀⠀⠀⠘⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡞⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠲⢀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⠏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡀⠁⠀⠜⡄⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠁⠀⠀⠠⠳⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⣧⣠⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠒⠀⠀⠀⠀⠀⣰⠀⠐⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⣀⣤⣾⠁⠈⣧⠀⠰⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⣄⠀⠀⠀⠀⡿⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠐⡇⠀⠘⠁⠀⠘⠲⢤⡀⠀⠀⠀⢀⠀⠀⠀⠀⠀⠈⠉⠀⠀⠀⢠⠇⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠙⢦⣄⠀⣠⠤⠤⠄⠙⡇⠀⠀⢨⠷⢶⡋⠀⠀⠀⠀⠀⢀⣴⠋⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⣧⠀⢷⣀⡴⠂⢠⣇⡀⠀⠀⠀⠀⠀⠀⠀⣀⣀⣴⠟⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠳⠤⣤⣤⡴⠋⠀⠹⣽⣛⣛⣿⠋⠉⠉⢁⡴⢋⣳⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠳⣄⡀⠀⠀⠉⠁⠀⠀⠀⣠⡞⠓⠚⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠹⡍⠓⠦⢤⠤⠴⠶⣺⠟⠀⠀⠀⠀⠀⠀⠀⢀⣀⡀⡰⢲⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠓⠒⠛⠲⠶⠚⠁⠀⠀⠀⠀⠀⠀⠀⠀⠘⣏⠉⠁⠈⠲⣤
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡆⣀⡀⠀⡞⠁
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠁⠈⠙⠁⠀`);
+            res.send(`Welcome to the Secured UniThrift Backend API! The vault is locked and loaded.`);
         });
 
         const PORT = process.env.PORT || 5000;

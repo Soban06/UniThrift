@@ -18,8 +18,7 @@ const ProfilePage = () => {
     const [sellingHistory, setSellingHistory] = useState([]);
     const [wishlist, setWishlist] = useState([]);
 
-    // 🌟 STATE FOR THE HISTORY MODAL
-    const [activeModal, setActiveModal] = useState(null); // 'purchases', 'borrows', 'selling', 'wishlist'
+    const [activeModal, setActiveModal] = useState(null); 
 
     useEffect(() => {
         const fetchProfileData = async () => {
@@ -73,10 +72,25 @@ const ProfilePage = () => {
         fetchProfileData();
     }, [urlUserId, navigate]);
 
+    // 🌟 NEW: INITIATE PHYSICAL RETURN HANDSHAKE
+    const initiateReturn = async (item) => {
+        try {
+            const token = sessionStorage.getItem('token');
+            await axios.post('http://localhost:5000/api/transactions/return/initiate', {
+                transactionId: item.transaction_id,
+                sellerId: item.seller_id,
+                itemId: item.item_id
+            }, { headers: { Authorization: `Bearer ${token}` } });
+            alert("Return handshake sent to the lender! Waiting for them to confirm.");
+        } catch (e) {
+            console.error(e);
+            alert("Failed to initiate return.");
+        }
+    }
+
     if (loading) return <div className="profile-page-wrapper"><h1 style={{color: 'white', textAlign: 'center', marginTop: '50px'}}>Loading...</h1></div>;
     if (!profileUser) return <div className="profile-page-wrapper"><h1 style={{color: 'white', textAlign: 'center', marginTop: '50px'}}>User Not Found</h1></div>;
 
-    // Helper for styled text links
     const getLinkStyle = (isClickable) => ({
         color: isClickable ? '#FF4500' : '#555',
         cursor: isClickable ? 'pointer' : 'not-allowed',
@@ -86,7 +100,6 @@ const ProfilePage = () => {
         display: 'inline-block'
     });
 
-    // 🌟 DYNAMIC HISTORY MODAL RENDERER
     const renderHistoryModal = () => {
         let data = [];
         let title = "";
@@ -98,7 +111,7 @@ const ProfilePage = () => {
 
         return (
             <div className="modal-overlay" onClick={() => setActiveModal(null)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                <div style={{ width: '600px', maxHeight: '80vh', backgroundColor: '#121212', border: '4px solid #ffffff', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+                <div style={{ width: '650px', maxHeight: '80vh', backgroundColor: '#121212', border: '4px solid #ffffff', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
                     
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', backgroundColor: '#ffffff', color: '#000000', borderBottom: '4px solid #000000' }}>
                         <h2 style={{ margin: 0, textTransform: 'uppercase' }}>{title}</h2>
@@ -110,10 +123,15 @@ const ProfilePage = () => {
                             <p style={{ color: '#aaa', textAlign: 'center', fontStyle: 'italic', marginTop: '20px' }}>No records found.</p>
                         ) : (
                             data.map((item, idx) => {
-                                // Extract status (handles both listings and transaction views)
                                 const status = item.item_status || item.status; 
                                 const isDeleted = status === 'deleted';
                                 const itemId = item.item_id;
+
+                                // 🌟 EXACT DATE FIX
+                                const formattedDate = new Date(item.transaction_date).toLocaleString();
+
+                                // Is this a physical item that needs to be returned?
+                                const isPhysicalBorrow = activeModal === 'borrows' && !item.is_digital && item.tx_status === 'completed' && !isDeleted;
 
                                 return (
                                     <div key={idx} 
@@ -131,10 +149,30 @@ const ProfilePage = () => {
                                                 {item.title} {item.quantity ? `(x${item.quantity})` : ''}
                                             </div>
                                             <div style={{ color: '#aaa', fontSize: '0.95rem' }}>
-                                                {activeModal === 'purchases' || activeModal === 'borrows' ? `Date: ${new Date(item.transaction_date).toLocaleDateString()}` : `Status: ${status.toUpperCase()}`}
+                                                {activeModal === 'purchases' || activeModal === 'borrows' ? `Acquired: ${formattedDate}` : `Status: ${status.toUpperCase()}`}
+                                                
+                                                {/* 🌟 SHOW EXPIRES DATE */}
+                                                {activeModal === 'borrows' && item.return_date && item.tx_status !== 'returned' && (
+                                                    <div style={{ color: '#FF4500', marginTop: '5px', fontWeight: 'bold' }}>
+                                                        Must Return By: {new Date(item.return_date).toLocaleString()}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
-                                        {isDeleted && <span style={{ color: '#f44336', fontWeight: 'bold', fontSize: '1rem', border: '1px solid #f44336', padding: '5px 10px' }}>DELETED</span>}
+                                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                            {isDeleted && <span style={{ color: '#f44336', fontWeight: 'bold', fontSize: '1rem', border: '1px solid #f44336', padding: '5px 10px' }}>DELETED</span>}
+                                            {item.tx_status === 'returned' && <span style={{ color: '#4CAF50', fontWeight: 'bold', fontSize: '1rem', border: '1px solid #4CAF50', padding: '5px 10px' }}>RETURNED</span>}
+                                            
+                                            {/* 🌟 RETURN BUTTON */}
+                                            {isPhysicalBorrow && (
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); initiateReturn(item); }} 
+                                                    style={{ padding: '8px 15px', backgroundColor: '#FF9800', color: '#000', border: 'none', fontWeight: 'bold', cursor: 'pointer', borderRadius: '4px' }}
+                                                >
+                                                    RETURN ITEM
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 )
                             })
@@ -198,7 +236,6 @@ const ProfilePage = () => {
 
                         <div style={{ borderBottom: '1px solid #444', paddingBottom: '15px', marginBottom: '20px' }}>
                             <h4 style={{ margin: '0 0 5px 0', fontSize: '1.1rem', color: '#ffff', textTransform: 'uppercase' }}>Selling History</h4>
-                            {/* Anyone can view someone else's public selling history! */}
                             <span style={getLinkStyle(true)} onClick={() => setActiveModal('selling')}>
                                 View All Listings
                             </span>

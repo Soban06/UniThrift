@@ -11,9 +11,15 @@ const NotificationCenter = ({ currentUserId }) => {
     const [sosAlerts, setSosAlerts] = useState([]);
     const [myActiveSos, setMyActiveSos] = useState([]); 
     
-    // 🌟 NEW STATES FOR RATINGS
+    // RATINGS STATES
     const [ratingRequests, setRatingRequests] = useState([]);
-    const [selectedRatings, setSelectedRatings] = useState({}); // Tracks { transactionId: score }
+    const [selectedRatings, setSelectedRatings] = useState({}); 
+
+    // E-BOOKS STATE
+    const [activeEbooks, setActiveEbooks] = useState([]);
+
+    // RETURN HANDSHAKES STATE
+    const [returnHandshakes, setReturnHandshakes] = useState([]);
 
     const fetchNotifications = useCallback(async () => {
         if (!currentUserId) return;
@@ -30,8 +36,10 @@ const NotificationCenter = ({ currentUserId }) => {
             setMyActiveSos(data.filter(n => n.notification_type === 'sos_alert' && n.user_id === n.sender_id));
             setSosAlerts(data.filter(n => n.notification_type === 'sos_alert' && n.user_id !== n.sender_id));
 
-            // 🌟 Capture rating requests
             setRatingRequests(data.filter(n => n.notification_type === 'rating_request'));
+            
+            // CAPTURE RETURN HANDSHAKES
+            setReturnHandshakes(data.filter(n => n.notification_type === 'return_handshake'));
 
             const msgs = data.filter(n => n.notification_type === 'message' || n.notification_type.includes('rejected'));
             const grouped = msgs.reduce((acc, curr) => {
@@ -42,6 +50,12 @@ const NotificationCenter = ({ currentUserId }) => {
                 return acc;
             }, {});
             setGroupedMessages(Object.values(grouped));
+
+            // FETCH ACTIVE E-BOOKS
+            const ebookRes = await axios.get(`http://localhost:5000/api/users/${currentUserId}/active-ebooks`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setActiveEbooks(ebookRes.data);
 
         } catch (error) {
             console.error("Error fetching notifications", error);
@@ -99,7 +113,6 @@ const NotificationCenter = ({ currentUserId }) => {
         }
     };
 
-    // 🌟 NEW: Submit Rating Function
     const handleSubmitRating = async (transactionId) => {
         const score = selectedRatings[transactionId];
         if (!score) return alert("Please select a star rating first!");
@@ -111,15 +124,29 @@ const NotificationCenter = ({ currentUserId }) => {
                 score
             }, { headers: { Authorization: `Bearer ${token}` } });
             
-            fetchNotifications(); // Refresh list to remove the rating notification
+            fetchNotifications(); 
         } catch (error) {
             console.error("Failed to submit rating", error);
             alert("Error submitting rating.");
         }
     };
 
-    // Include rating requests in the red pending badge
-    const totalPending = handshakes.length + groupedMessages.length + sosAlerts.length + myActiveSos.length + ratingRequests.length;
+    // 🌟 CONFIRM PHYSICAL RETURN
+    const handleResolveReturn = async (transactionId) => {
+        try {
+            const token = sessionStorage.getItem('token');
+            await axios.post('http://localhost:5000/api/transactions/return/resolve', { 
+                transactionId 
+            }, { headers: { Authorization: `Bearer ${token}` } });
+            
+            alert("Return Confirmed! Item stock has been updated.");
+            fetchNotifications(); 
+        } catch (error) {
+            console.error("Failed to confirm return", error);
+        }
+    };
+
+    const totalPending = handshakes.length + groupedMessages.length + sosAlerts.length + myActiveSos.length + ratingRequests.length + returnHandshakes.length;
 
     return (
         <>
@@ -138,9 +165,47 @@ const NotificationCenter = ({ currentUserId }) => {
                         </div>
 
                         <div style={{ padding: '20px', overflowY: 'auto', flex: 1, color: 'white' }}>
-                            {totalPending === 0 && <p style={{ textAlign: 'center', color: '#888', fontStyle: 'italic', marginTop: '40px' }}>No pending notifications.</p>}
+                            {totalPending === 0 && activeEbooks.length === 0 && <p style={{ textAlign: 'center', color: '#888', fontStyle: 'italic', marginTop: '40px' }}>No pending notifications or active borrows.</p>}
 
-                            {/* 🌟 RATINGS TABLE (Displays pending reviews) */}
+                            {/* 🌟 RETURN CONFIRMATIONS (LENDER SEES THIS) */}
+                            {returnHandshakes.length > 0 && (
+                                <div style={{ marginBottom: '30px' }}>
+                                    <h3 style={{ borderBottom: '2px solid #555', paddingBottom: '10px', color: '#4CAF50' }}>RETURN CONFIRMATIONS</h3>
+                                    {returnHandshakes.map(h => (
+                                        <div key={h.notification_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', border: '2px solid #4CAF50', marginBottom: '10px', backgroundColor: '#1a1a1a' }}>
+                                            <div>
+                                                <div style={{ fontWeight: 'bold', fontSize: '1.2rem', marginBottom: '5px' }}>{h.item_name}</div>
+                                                <div style={{ color: '#aaa', fontStyle: 'italic', marginBottom: '8px', fontSize: '0.95rem' }}>"{h.message_text}"</div>
+                                                <div style={{ color: '#888' }}>Returned by: <span style={{ color: '#fff' }}>{h.sender_name}</span></div>
+                                            </div>
+                                            <button onClick={() => handleResolveReturn(h.transaction_id)} style={{ padding: '10px 20px', backgroundColor: '#4CAF50', color: 'white', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>CONFIRM RECEIVED</button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* 🌟 MY DIGITAL E-BOOKS SHELF */}
+                            {activeEbooks.length > 0 && (
+                                <div style={{ marginBottom: '30px', padding: '20px', border: '2px solid #4A90E2', backgroundColor: '#0a0a0a', borderRadius: '8px' }}>
+                                    <h3 style={{ color: '#4A90E2', margin: '0 0 15px 0', fontSize: '1.2rem', textTransform: 'uppercase', borderBottom: '1px solid #4A90E2', paddingBottom: '10px' }}>📖 Active Digital Borrows</h3>
+                                    <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '10px' }}>
+                                        {activeEbooks.map(eb => (
+                                            <div key={eb.transaction_id} 
+                                                 onClick={() => { setIsOpen(false); navigate(`/view-ebook/${eb.transaction_id}`); }}
+                                                 style={{ minWidth: '140px', padding: '15px', backgroundColor: '#1a1a1a', border: '1px solid #333', textAlign: 'center', cursor: 'pointer', borderRadius: '8px', transition: 'border-color 0.2s' }}
+                                                 onMouseEnter={(e) => e.currentTarget.style.borderColor = '#4A90E2'}
+                                                 onMouseLeave={(e) => e.currentTarget.style.borderColor = '#333'}
+                                            >
+                                                <div style={{ fontSize: '2.5rem', marginBottom: '10px' }}>📘</div>
+                                                <div style={{ fontSize: '0.9rem', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#fff' }}>{eb.title}</div>
+                                                <div style={{ fontSize: '0.8rem', color: '#f44336', marginTop: '8px', fontWeight: 'bold' }}>Expires: {new Date(eb.return_date).toLocaleDateString()}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* RATINGS TABLE */}
                             {ratingRequests.length > 0 && (
                                 <div style={{ marginBottom: '30px' }}>
                                     <h3 style={{ borderBottom: '2px solid #555', paddingBottom: '10px', color: '#FFD700' }}>PENDING REVIEWS</h3>
@@ -149,7 +214,6 @@ const NotificationCenter = ({ currentUserId }) => {
                                             <div style={{ fontWeight: 'bold', fontSize: '1.2rem', color: '#fff', marginBottom: '5px' }}>Rate: {r.item_name}</div>
                                             <div style={{ color: '#aaa', fontStyle: 'italic', marginBottom: '15px' }}>Seller: {r.sender_name}</div>
                                             
-                                            {/* Interactive Stars */}
                                             <div style={{ fontSize: '3rem', cursor: 'pointer', display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '20px' }}>
                                                 {[1, 2, 3, 4, 5].map(star => {
                                                     const currentScore = selectedRatings[r.transaction_id] || 0;
@@ -176,7 +240,7 @@ const NotificationCenter = ({ currentUserId }) => {
                                 </div>
                             )}
 
-                            {/* MY ACTIVE S.O.S (Control Panel) */}
+                            {/* MY ACTIVE S.O.S */}
                             {myActiveSos.length > 0 && (
                                 <div style={{ marginBottom: '30px' }}>
                                     <h3 style={{ borderBottom: '2px solid #555', paddingBottom: '10px', color: '#FFD700' }}>MY ACTIVE S.O.S</h3>
@@ -192,7 +256,7 @@ const NotificationCenter = ({ currentUserId }) => {
                                 </div>
                             )}
 
-                            {/* 1. HANDSHAKES TABLE */}
+                            {/* HANDSHAKES TABLE */}
                             {handshakes.length > 0 && (
                                 <div style={{ marginBottom: '30px' }}>
                                     <h3 style={{ borderBottom: '2px solid #555', paddingBottom: '10px', color: '#FF4500' }}>PENDING HANDSHAKES</h3>
@@ -223,7 +287,7 @@ const NotificationCenter = ({ currentUserId }) => {
                                 </div>
                             )}
 
-                            {/* 2. MESSAGES TABLE */}
+                            {/* MESSAGES TABLE */}
                             {groupedMessages.length > 0 && (
                                 <div style={{ marginBottom: '30px' }}>
                                     <h3 style={{ borderBottom: '2px solid #555', paddingBottom: '10px', color: '#4A90E2' }}>NEW MESSAGES & ALERTS</h3>
@@ -242,7 +306,7 @@ const NotificationCenter = ({ currentUserId }) => {
                                 </div>
                             )}
 
-                            {/* 3. SOS ALERTS */}
+                            {/* SOS ALERTS */}
                             {sosAlerts.length > 0 && (
                                 <div>
                                     <h3 style={{ borderBottom: '2px solid #555', paddingBottom: '10px', color: '#f44336' }}>COMMUNITY S.O.S</h3>

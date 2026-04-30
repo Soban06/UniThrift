@@ -9,6 +9,10 @@ import ItemPage from './components/ItemPage';
 import MarketplacePage from './components/MarketplacePage';
 import ChatPage from './components/ChatPage';
 import SosPage from './components/SosPage';
+import EbookViewer from './components/EbookViewer'; // Make sure the path matches where you saved it
+
+// Inside your <Routes> block:
+
 
 function App() {
   return (
@@ -33,6 +37,7 @@ function App() {
         
         {/* SOS Route */}
         <Route path="/sos/:sosId" element={<SosPage />} />
+        <Route path="/view-ebook/:txId" element={<EbookViewer />} />
       </Routes>
     </Router>
   );

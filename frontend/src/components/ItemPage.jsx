@@ -30,7 +30,7 @@ const ItemPage = () => {
                     setCurrentUserId(userId);
                 }
 
-                // 1. Fetch the Item Details (Our backend now perfectly includes BOTH seller & item ratings natively!)
+                // 1. Fetch the Item Details
                 const response = await axios.get('http://localhost:5000/api/items/' + itemId);
                 const itemData = response.data;
 
@@ -304,6 +304,16 @@ const ItemPage = () => {
                                 <small style={{ color: '#888', display: 'block', marginTop: '8px' }}>Max available: {item.stock_quantity}</small>
                             </div>
                         )}
+
+                        {/* 🌟 NEW: DISPLAY BORROW PERIOD */}
+                        {item.listing_type === 'borrow' && (
+                            <div style={{ marginTop: '20px' }}>
+                                <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', color: '#aaa', textTransform: 'uppercase' }}>Borrow Period</h4>
+                                <p style={{ color: '#4A90E2', fontWeight: 'bold', fontSize: '1.2rem', margin: 0 }}>
+                                    {item.borrow_duration ? `${item.borrow_duration} DAYS` : '14 DAYS'}
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     {/* BUTTONS */}
@@ -389,7 +399,7 @@ const ItemPage = () => {
                                 </div>
                             </div>
                             
-                            {/* 🌟 DYNAMIC BORROWED STAT (Instead of hardcoded 4) */}
+                            {/* 🌟 DYNAMIC BORROWED STAT */}
                             <div style={{ backgroundColor: 'white', color: 'black', height: '60px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', border: '2px solid #000' }}>
                                 <div style={{ display: 'flex', width: '180px', alignItems: 'center' }}>
                                     <span style={{ width: '35px', textAlign: 'center', marginRight: '15px', fontSize: '1.4rem' }}>🤝</span>
