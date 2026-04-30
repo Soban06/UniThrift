@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
 
-// 🌟 THE FIX: Removed '/esm' from the CSS paths for React-PDF v9+
+
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
-// 🌟 BULLETPROOF WORKER: Standard string concatenation instead of backticks
+//  Standard string concatenation 
 pdfjs.GlobalWorkerOptions.workerSrc = "https://unpkg.com/pdfjs-dist@" + pdfjs.version + "/build/pdf.worker.min.mjs";
 
 const EbookViewer = () => {
@@ -18,7 +18,6 @@ const EbookViewer = () => {
     const token = sessionStorage.getItem('token');
     const user = JSON.parse(sessionStorage.getItem('user') || '{}');
 
-    // 🌟 Standard string concatenation
     const fileConfig = {
         url: "http://localhost:5000/api/vault/" + txId,
         httpHeaders: { Authorization: "Bearer " + token }
@@ -35,14 +34,14 @@ const EbookViewer = () => {
                 </button>
             </div>
 
-            {/* 🛡️ The Vault Area (Disables Right-Click) */}
+            {/* The Vault Area (Disables Right-Click) */}
             <div 
                 style={{ flex: 1, padding: '40px', display: 'flex', justifyContent: 'center', position: 'relative', userSelect: 'none' }}
                 onContextMenu={(e) => e.preventDefault()} 
             >
-                {/* 🛡️ Anti-Screenshot Watermark Overlay */}
+                {/*  Anti-Screenshot Watermark Overlay */}
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none', zIndex: 10, display: 'flex', flexWrap: 'wrap', opacity: 0.05, fontSize: '24px', color: 'red', transform: 'rotate(-30deg)', overflow: 'hidden' }}>
-                    {/* 🌟 Standard string concatenation */}
+                    {/*  Standard string concatenation */}
                     {Array(200).fill("BORROWED BY: " + (user.email || 'USER') + " ").map((t, i) => <span key={i} style={{ padding: '20px', whiteSpace: 'nowrap' }}>{t}</span>)}
                 </div>
 
@@ -64,13 +63,13 @@ const EbookViewer = () => {
                             loading={<h2 style={{ color: '#000', textAlign: 'center', padding: '50px' }}>Decrypting Secure File...</h2>}
                         >
                             {Array.from(new Array(numPages), (el, index) => (
-                                /* 🌟 Standard string concatenation for keys */
+                                /*  Standard string concatenation for keys */
                                 <div key={"page_" + (index + 1)} style={{ marginBottom: '20px', border: '1px solid #ccc', boxShadow: '0 4px 8px rgba(0,0,0,0.1)' }}>
                                     <Page 
                                         pageNumber={index + 1} 
                                         width={800} 
-                                        renderTextLayer={false} /* 🛡️ Prevents Text Selection */
-                                        renderAnnotationLayer={false} /* 🛡️ Prevents Link Extraction */
+                                        renderTextLayer={false} /*  Prevents Text Selection */
+                                        renderAnnotationLayer={false} /*  Prevents Link Extraction */
                                     />
                                 </div>
                             ))}
