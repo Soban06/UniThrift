@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './ChatPage.css';
@@ -19,24 +19,26 @@ const ChatPage = () => {
     const [newMessage, setNewMessage] = useState('');
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const storedUser = JSON.parse(sessionStorage.getItem('user'));
-        if (!storedUser) {
-            navigate('/login');
-            return;
-        }
-        const userObj = { id: storedUser.id || storedUser.user_id, name: storedUser.name || storedUser.full_name || "You" };
-        setCurrentUser(userObj);
+    // 🌟 1. WRAPPED IN USECALLBACK
+    const handleSelectContact = useCallback(async (contact, activeUser) => {
+        if (!activeUser) return;
         
-        fetchContacts(userObj);
+        setSelectedContact(contact);
+        try {
+            const token = sessionStorage.getItem('token');
+            const activeItemId = contact.item_id || passedItemId || 0; 
+            
+            const response = await axios.get(`http://localhost:5000/api/messages/${activeItemId}/${activeUser.id}/${contact.contact_id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setMessages(response.data);
+        } catch (error) {
+            console.error("Failed to load chat history", error);
+        }
+    }, [passedItemId]); // Only depends on passedItemId
 
-    }, [navigate, passedSellerId, passedItemId]);
-
-    useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
-
-    const fetchContacts = async (user) => {
+    // 🌟 2. WRAPPED IN USECALLBACK
+    const fetchContacts = useCallback(async (user) => {
         try {
             const token = sessionStorage.getItem('token');
             const response = await axios.get(`http://localhost:5000/api/users/${user.id}/chats`, {
@@ -73,25 +75,25 @@ const ChatPage = () => {
             console.error("Failed to fetch contacts", error);
             setLoading(false);
         }
-    };
+    }, [passedSellerId, passedItemId, handleSelectContact]); // Proper dependencies
 
-    // Passed explicitly so it doesn't rely on stale React state
-    const handleSelectContact = async (contact, activeUser = currentUser) => {
-        if (!activeUser) return;
-        
-        setSelectedContact(contact);
-        try {
-            const token = sessionStorage.getItem('token');
-            const activeItemId = contact.item_id || passedItemId || 0; 
-            
-            const response = await axios.get(`http://localhost:5000/api/messages/${activeItemId}/${activeUser.id}/${contact.contact_id}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setMessages(response.data);
-        } catch (error) {
-            console.error("Failed to load chat history", error);
+    // 🌟 3. PROPER DEPENDENCY ARRAY ADDED
+    useEffect(() => {
+        const storedUser = JSON.parse(sessionStorage.getItem('user'));
+        if (!storedUser) {
+            navigate('/login');
+            return;
         }
-    };
+        const userObj = { id: storedUser.id || storedUser.user_id, name: storedUser.name || storedUser.full_name || "You" };
+        setCurrentUser(userObj);
+        
+        fetchContacts(userObj);
+
+    }, [navigate, fetchContacts]); // ESLint is finally happy!
+
+    useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
 
     const handleSendMessage = async (e) => {
         e.preventDefault();

@@ -17,8 +17,15 @@ const ProfilePage = () => {
     const [borrowHistory, setBorrowHistory] = useState([]);
     const [sellingHistory, setSellingHistory] = useState([]);
     const [wishlist, setWishlist] = useState([]);
+    const [departments, setDepartments] = useState([]);
 
     const [activeModal, setActiveModal] = useState(null); 
+    
+    // 🌟 EDIT PROFILE STATES
+    const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+    const [editProfileData, setEditProfileData] = useState({
+        name: '', bio: '', departmentId: '', password: ''
+    });
 
     useEffect(() => {
         const fetchProfileData = async () => {
@@ -43,8 +50,21 @@ const ProfilePage = () => {
                 const isOwn = String(targetUserId) === String(loggedInUserId);
                 setIsOwnProfile(isOwn);
 
-                const userRes = await axios.get(`http://localhost:5000/api/users/${targetUserId}/public`);
+                // Fetch User & Departments
+                const [userRes, deptRes] = await Promise.all([
+                    axios.get(`http://localhost:5000/api/users/${targetUserId}/public`),
+                    axios.get('http://localhost:5000/api/departments')
+                ]);
+
                 setProfileUser(userRes.data);
+                setDepartments(deptRes.data);
+                
+                // Pre-fill the edit form
+                setEditProfileData(prev => ({
+                    ...prev,
+                    name: userRes.data.full_name || userRes.data.name || '',
+                    bio: userRes.data.user_description || ''
+                }));
 
                 const sellRes = await axios.get(`http://localhost:5000/api/users/${targetUserId}/listings`);
                 setSellingHistory(sellRes.data);
@@ -88,6 +108,24 @@ const ProfilePage = () => {
         }
     }
 
+    // 🌟 SAVE EDITED PROFILE
+    const handleSaveProfile = async () => {
+        if (!editProfileData.departmentId) return alert("Please select a department!");
+        
+        try {
+            const token = sessionStorage.getItem('token');
+            await axios.put(`http://localhost:5000/api/users/update/${currentUserId}`, editProfileData, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            alert("Profile updated successfully!");
+            setIsEditProfileOpen(false);
+            window.location.reload(); // Refresh to show new data
+        } catch (err) {
+            console.error(err);
+            alert("Failed to update profile. " + (err.response?.data?.message || ""));
+        }
+    };
+
     if (loading) return <div className="profile-page-wrapper"><h1 style={{color: 'white', textAlign: 'center', marginTop: '50px'}}>Loading...</h1></div>;
     if (!profileUser) return <div className="profile-page-wrapper"><h1 style={{color: 'white', textAlign: 'center', marginTop: '50px'}}>User Not Found</h1></div>;
 
@@ -126,11 +164,7 @@ const ProfilePage = () => {
                                 const status = item.item_status || item.status; 
                                 const isDeleted = status === 'deleted';
                                 const itemId = item.item_id;
-
-                                // EXACT DATE FIX
                                 const formattedDate = new Date(item.transaction_date).toLocaleString();
-
-                                // Is this a physical item that needs to be returned?
                                 const isPhysicalBorrow = activeModal === 'borrows' && !item.is_digital && item.tx_status === 'completed' && !isDeleted;
 
                                 return (
@@ -150,8 +184,6 @@ const ProfilePage = () => {
                                             </div>
                                             <div style={{ color: '#aaa', fontSize: '0.95rem' }}>
                                                 {activeModal === 'purchases' || activeModal === 'borrows' ? `Acquired: ${formattedDate}` : `Status: ${status.toUpperCase()}`}
-                                                
-                                                {/* SHOW EXPIRES DATE */}
                                                 {activeModal === 'borrows' && item.return_date && item.tx_status !== 'returned' && (
                                                     <div style={{ color: '#FF4500', marginTop: '5px', fontWeight: 'bold' }}>
                                                         Must Return By: {new Date(item.return_date).toLocaleString()}
@@ -163,7 +195,6 @@ const ProfilePage = () => {
                                             {isDeleted && <span style={{ color: '#f44336', fontWeight: 'bold', fontSize: '1rem', border: '1px solid #f44336', padding: '5px 10px' }}>DELETED</span>}
                                             {item.tx_status === 'returned' && <span style={{ color: '#4CAF50', fontWeight: 'bold', fontSize: '1rem', border: '1px solid #4CAF50', padding: '5px 10px' }}>RETURNED</span>}
                                             
-                                            {/* RETURN BUTTON */}
                                             {isPhysicalBorrow && (
                                                 <button 
                                                     onClick={(e) => { e.stopPropagation(); initiateReturn(item); }} 
@@ -250,8 +281,12 @@ const ProfilePage = () => {
 
                     </div>
 
+                    {/* 🌟 THE FIXED EDIT PROFILE BUTTON */}
                     {isOwnProfile && (
-                        <button style={{ width: '100%', marginTop: '20px', backgroundColor: '#333', color: 'white', padding: '15px', border: '1px solid #555', cursor: 'pointer', fontWeight: 'bold', textTransform: 'uppercase', fontSize: '1.1rem' }}>
+                        <button 
+                            onClick={() => setIsEditProfileOpen(true)}
+                            style={{ width: '100%', marginTop: '20px', backgroundColor: '#333', color: 'white', padding: '15px', border: '1px solid #555', cursor: 'pointer', fontWeight: 'bold', textTransform: 'uppercase', fontSize: '1.1rem' }}
+                        >
                             Edit Profile
                         </button>
                     )}
@@ -303,8 +338,48 @@ const ProfilePage = () => {
 
             </div>
 
-            {/* MOUNT THE MODAL HERE */}
+            {/* MOUNT THE MODALS HERE */}
             {activeModal && renderHistoryModal()}
+
+            {/* 🌟 EDIT PROFILE MODAL */}
+            {isEditProfileOpen && (
+                <div className="modal-overlay" onClick={() => setIsEditProfileOpen(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 3000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <div style={{ width: '500px', backgroundColor: '#121212', border: '4px solid #ffffff', padding: '25px', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+                        
+                        <h2 style={{ color: '#fff', borderBottom: '2px solid #555', paddingBottom: '10px', marginTop: 0, textTransform: 'uppercase' }}>Edit Profile</h2>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
+                            <div>
+                                <label style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 'bold' }}>FULL NAME</label>
+                                <input type="text" value={editProfileData.name} onChange={e => setEditProfileData({...editProfileData, name: e.target.value})} style={{ width: '100%', padding: '10px', backgroundColor: '#1a1a1a', border: '1px solid #444', color: '#fff', marginTop: '5px', fontSize: '1rem', boxSizing: 'border-box' }} />
+                            </div>
+                            
+                            <div>
+                                <label style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 'bold' }}>BIO / DESCRIPTION</label>
+                                <textarea value={editProfileData.bio} onChange={e => setEditProfileData({...editProfileData, bio: e.target.value})} rows="3" style={{ width: '100%', padding: '10px', backgroundColor: '#1a1a1a', border: '1px solid #444', color: '#fff', marginTop: '5px', fontSize: '1rem', boxSizing: 'border-box' }} />
+                            </div>
+                            
+                            <div>
+                                <label style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 'bold' }}>DEPARTMENT</label>
+                                <select value={editProfileData.departmentId} onChange={e => setEditProfileData({...editProfileData, departmentId: e.target.value})} style={{ width: '100%', padding: '10px', backgroundColor: '#1a1a1a', border: '1px solid #444', color: '#fff', marginTop: '5px', fontSize: '1rem', boxSizing: 'border-box' }}>
+                                    <option value="" disabled>Select a department...</option>
+                                    {departments.map(d => <option key={d.department_id} value={d.department_id}>{d.department_name}</option>)}
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 'bold' }}>NEW PASSWORD</label>
+                                <input type="password" value={editProfileData.password} onChange={e => setEditProfileData({...editProfileData, password: e.target.value})} placeholder="Leave blank to keep current password" style={{ width: '100%', padding: '10px', backgroundColor: '#1a1a1a', border: '1px solid #444', color: '#fff', marginTop: '5px', fontSize: '1rem', boxSizing: 'border-box' }} />
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '25px' }}>
+                            <button onClick={handleSaveProfile} style={{ flex: 1, padding: '12px', backgroundColor: '#4CAF50', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '1.1rem' }}>SAVE CHANGES</button>
+                            <button onClick={() => setIsEditProfileOpen(false)} style={{ flex: 1, padding: '12px', backgroundColor: '#f44336', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '1.1rem' }}>CANCEL</button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
         </div>
     );

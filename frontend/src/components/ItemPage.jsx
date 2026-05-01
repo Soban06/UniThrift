@@ -30,21 +30,21 @@ const ItemPage = () => {
                     setCurrentUserId(userId);
                 }
 
-                // 1. Fetch the Item Details
                 const response = await axios.get('http://localhost:5000/api/items/' + itemId);
-                const itemData = response.data;
-
-                setItem(itemData);
+                setItem(response.data);
 
                 setEditFormData({
-                    title: itemData.title,
-                    item_description: itemData.item_description,
-                    price: itemData.price,
-                    stock_quantity: itemData.stock_quantity
+                    title: response.data.title,
+                    item_description: response.data.item_description,
+                    price: response.data.price,
+                    stock_quantity: response.data.stock_quantity
                 });
 
                 if (userId) {
-                    const wishListRes = await axios.get('http://localhost:5000/api/users/' + userId + '/wishlist');
+                    const token = sessionStorage.getItem('token');
+                    const wishListRes = await axios.get('http://localhost:5000/api/users/' + userId + '/wishlist', {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
                     const alreadyLiked = wishListRes.data.some(wItem => wItem.item_id.toString() === itemId.toString());
                     setIsWishlisted(alreadyLiked);
                 }
@@ -76,9 +76,7 @@ const ItemPage = () => {
             await axios.post('http://localhost:5000/api/wishlist/toggle', {
                 userId: currentUserId,
                 itemId: itemId
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            }, { headers: { Authorization: `Bearer ${token}` } });
         } catch (err) {
             console.error("Failed to toggle wishlist", err);
             setIsWishlisted(!newWishlistState);
@@ -100,9 +98,7 @@ const ItemPage = () => {
             await axios.put(`http://localhost:5000/api/items/update/${itemId}`, {
                 ...editFormData,
                 userId: currentUserId
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            }, { headers: { Authorization: `Bearer ${token}` } });
 
             alert("Listing updated successfully!");
             setIsEditModalOpen(false);
@@ -136,7 +132,6 @@ const ItemPage = () => {
         }
     };
 
-    //  SMART PURCHASE/BORROW LOGIC
     const handlePurchase = async () => {
         if (!currentUserId) {
             setIsPurchaseSuccess(false);
@@ -145,7 +140,8 @@ const ItemPage = () => {
             return;
         }
 
-        if (buyQuantity > item.stock_quantity) {
+        // Bypass stock check if it's digital
+        if (!item.is_digital && buyQuantity > item.stock_quantity) {
             setIsPurchaseSuccess(false);
             setPurchaseMessage("❌ You cannot request more than the available stock!");
             setTimeout(() => setPurchaseMessage(''), 3000);
@@ -154,13 +150,14 @@ const ItemPage = () => {
 
         try {
             const token = sessionStorage.getItem('token');
+            const qtyToSend = item.is_digital ? 1 : Number(buyQuantity); 
 
             if (item.listing_type === 'borrow') {
                 await axios.post('http://localhost:5000/api/transactions/borrow', { 
                     itemId: item.item_id, 
                     buyerId: currentUserId, 
                     sellerId: item.seller_id,
-                    qty: Number(buyQuantity) 
+                    qty: qtyToSend
                 }, { headers: { Authorization: `Bearer ${token}` } });
                 
                 setIsPurchaseSuccess(true);
@@ -170,7 +167,7 @@ const ItemPage = () => {
                     itemId: item.item_id, 
                     buyerId: currentUserId, 
                     sellerId: item.seller_id,
-                    qty: Number(buyQuantity) 
+                    qty: qtyToSend
                 }, { headers: { Authorization: `Bearer ${token}` } });
                 
                 setIsPurchaseSuccess(true);
@@ -179,8 +176,9 @@ const ItemPage = () => {
             
             setItem(prevItem => ({
                 ...prevItem,
-                stock_quantity: prevItem.stock_quantity - Number(buyQuantity),
-                seller_sold_count: item.listing_type !== 'borrow' ? (prevItem.seller_sold_count || 0) + Number(buyQuantity) : prevItem.seller_sold_count
+                stock_quantity: prevItem.stock_quantity - qtyToSend,
+                // 🌟 THE FIX: Update the correct state variable name here too
+                item_sold_count: item.listing_type !== 'borrow' ? (prevItem.item_sold_count || 0) + qtyToSend : prevItem.item_sold_count
             }));
 
             setBuyQuantity(1); 
@@ -209,7 +207,7 @@ const ItemPage = () => {
     if (!item) return <div className="profile-page-wrapper"><h1 style={{ color: 'white', textAlign: 'center', marginTop: '50px' }}>Item Not Found</h1></div>;
 
     const isOwner = currentUserId === item.seller_id;
-    const isOutOfStock = item.stock_quantity <= 0;
+    const isOutOfStock = !item.is_digital && item.stock_quantity <= 0;
 
     return (
         <div className="profile-page-wrapper">
@@ -224,14 +222,22 @@ const ItemPage = () => {
             </header>
 
             <div className="profile-content-grid">
-                {/*  LEFT COLUMN */}
+                
+                {/* LEFT COLUMN */}
                 <div className="profile-left-col">
                     <h2 className="profile-username" style={{ fontSize: '2.2rem', margin: '0 0 15px 0', lineHeight: '0.8' }}>
                         {item.title}
                     </h2>
                     
-                    <div className="profile-pic-frame" style={{ backgroundColor: '#ccc', border: '2px solid #555', marginBottom: '20px', aspectRatio: '1/1' }}>
-                        <img src={item.image_url} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <div className="profile-pic-frame" style={{ backgroundColor: item.is_digital ? '#0a0a0a' : '#ccc', border: '2px solid #555', marginBottom: '20px', aspectRatio: '1/1', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                        {item.is_digital && (item.image_url.includes('default.png') || !item.image_url) ? (
+                            <div style={{ textAlign: 'center', color: '#4A90E2' }}>
+                                <div style={{ fontSize: '6rem', marginBottom: '15px' }}>📄</div>
+                                <h3 style={{ margin: 0, letterSpacing: '2px' }}>SECURE E-BOOK</h3>
+                            </div>
+                        ) : (
+                            <img src={item.image_url} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        )}
                     </div>
                     
                     <div className="profile-description" style={{ border: '1px solid #555', padding: '15px', backgroundColor: '#1a1a1a' }}>
@@ -247,50 +253,35 @@ const ItemPage = () => {
                     </div>
                 </div>
 
-                {/*  MIDDLE COLUMN */}
+                {/* MIDDLE COLUMN */}
                 <div className="profile-mid-col" style={{ display: 'flex', flexDirection: 'column' }}>
                     <div className="history-container" style={{ border: '1px solid #555', borderRadius: '8px', backgroundColor: '#222', padding: '25px', marginTop: '12px' }}>
                         
-                        {/* SELLER (Owner/Lender) */}
                         <div style={{ borderBottom: '1px solid #444', paddingBottom: '15px', marginBottom: '20px' }}>
                             <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', color: '#aaa', textTransform: 'uppercase' }}>
                                 {item.listing_type === 'borrow' ? 'Lender' : 'Seller'}
                             </h4>
                             <p 
                                 onClick={() => navigate(`/profile/${item.seller_id}`)}
-                                style={{ 
-                                    color: '#ffffff', 
-                                    fontWeight: 'bold', 
-                                    fontSize: '1.3rem', 
-                                    margin: 0,
-                                    cursor: 'pointer',
-                                    display: 'inline-block',
-                                    transition: 'color 0.2s ease-in-out',
-                                    textDecoration: 'underline'
-                                }}
-                                onMouseEnter={(e) => e.target.style.color = '#FF4500'}
-                                onMouseLeave={(e) => e.target.style.color = '#ffffff'}
+                                style={{ color: '#ffffff', fontWeight: 'bold', fontSize: '1.3rem', margin: 0, cursor: 'pointer', textDecoration: 'underline' }}
                             >
                                 {item.seller_name}
                             </p>
                         </div>
 
-                        {/* PRICE */}
                         <div style={{ borderBottom: '1px solid #444', paddingBottom: '15px', marginBottom: '20px' }}>
                             <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', color: '#aaa', textTransform: 'uppercase' }}>Price</h4>
                             <p style={{ color: '#FF4500', fontWeight: 'bold', fontSize: '1.3rem', margin: 0 }}>PKR {item.price}</p>
                         </div>
                         
-                        {/* AVAILABILITY */}
-                        <div style={{ borderBottom: (!isOwner && !isOutOfStock) ? '1px solid #444' : 'none', paddingBottom: (!isOwner && !isOutOfStock) ? '15px' : '0', marginBottom: (!isOwner && !isOutOfStock) ? '20px' : '0' }}>
+                        <div style={{ borderBottom: (!isOwner && !isOutOfStock && !item.is_digital) ? '1px solid #444' : 'none', paddingBottom: (!isOwner && !isOutOfStock && !item.is_digital) ? '15px' : '0', marginBottom: (!isOwner && !isOutOfStock && !item.is_digital) ? '20px' : '0' }}>
                             <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', color: '#aaa', textTransform: 'uppercase' }}>Availability</h4>
-                            <p style={{ color: !isOutOfStock ? '#4CAF50' : '#f44336', fontWeight: 'bold', fontSize: '1.1rem', margin: 0 }}>
-                                {!isOutOfStock ? item.stock_quantity + ' IN STOCK' : 'UNAVAILABLE'}
+                            <p style={{ color: item.is_digital ? '#4A90E2' : (!isOutOfStock ? '#4CAF50' : '#f44336'), fontWeight: 'bold', fontSize: '1.1rem', margin: 0 }}>
+                                {item.is_digital ? '♾️ UNLIMITED (DIGITAL)' : (!isOutOfStock ? item.stock_quantity + ' IN STOCK' : 'UNAVAILABLE')}
                             </p>
                         </div>
 
-                        {/* QUANTITY */}
-                        {!isOwner && !isOutOfStock && (
+                        {!isOwner && !isOutOfStock && !item.is_digital && (
                             <div>
                                 <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', color: '#aaa', textTransform: 'uppercase' }}>Quantity Needed</h4>
                                 <input type="number" value={buyQuantity}
@@ -305,7 +296,6 @@ const ItemPage = () => {
                             </div>
                         )}
 
-                        {/*  NEW: DISPLAY BORROW PERIOD */}
                         {item.listing_type === 'borrow' && (
                             <div style={{ marginTop: '20px' }}>
                                 <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', color: '#aaa', textTransform: 'uppercase' }}>Borrow Period</h4>
@@ -316,7 +306,6 @@ const ItemPage = () => {
                         )}
                     </div>
 
-                    {/* BUTTONS */}
                     {!isOwner ? (
                         <>
                             <div style={{ display: 'flex', gap: '15px', marginTop: '20px', alignItems: 'center' }}>
@@ -361,7 +350,7 @@ const ItemPage = () => {
                     )}
                 </div>
 
-                {/*  RIGHT COLUMN (Item Statistics) */}
+                {/* RIGHT COLUMN (Item Statistics) */}
                 <div className="profile-right-col" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                     <div style={{ border: '2px solid #ffffff', borderRadius: '8px', backgroundColor: '#1a1a1a', padding: '25px', flex: 1, display: 'flex', flexDirection: 'column', marginTop: '12px' }}>
                         <h3 style={{ margin: '0 0 25px 0', fontSize: '1.4rem' }}>Item Statistics</h3>
@@ -371,11 +360,11 @@ const ItemPage = () => {
                             <div style={{ backgroundColor: 'white', color: 'black', height: '60px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', border: '2px solid #000' }}>
                                 <div style={{ display: 'flex', width: '180px', alignItems: 'center' }}>
                                     <span style={{ width: '35px', textAlign: 'center', marginRight: '15px', fontSize: '1.4rem' }}>🏷️</span>
-                                    <span>Sold: {item.seller_sold_count || 0}</span>
+                                    {/* 🌟 THE FIX: Render the correct variable name */}
+                                    <span>Sold: {item.item_sold_count || 0}</span>
                                 </div>
                             </div>
                             
-                            {/* ITEM'S SPECIFIC RATING */}
                             <div style={{ backgroundColor: 'white', color: 'black', height: '60px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', border: '2px solid #000' }}>
                                 <div style={{ display: 'flex', width: '220px', alignItems: 'center' }}>
                                     <span style={{ width: '35px', textAlign: 'center', marginRight: '15px', fontSize: '1.4rem' }}>📦</span>
@@ -387,7 +376,6 @@ const ItemPage = () => {
                                 </div>
                             </div>
 
-                            {/* SELLER'S OVERALL RATING */}
                             <div style={{ backgroundColor: 'white', color: 'black', height: '60px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', border: '2px solid #000' }}>
                                 <div style={{ display: 'flex', width: '220px', alignItems: 'center' }}>
                                     <span style={{ width: '35px', textAlign: 'center', marginRight: '15px', fontSize: '1.4rem' }}>⭐</span>
@@ -399,7 +387,6 @@ const ItemPage = () => {
                                 </div>
                             </div>
                             
-                            {/* DYNAMIC BORROWED STAT */}
                             <div style={{ backgroundColor: 'white', color: 'black', height: '60px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', border: '2px solid #000' }}>
                                 <div style={{ display: 'flex', width: '180px', alignItems: 'center' }}>
                                     <span style={{ width: '35px', textAlign: 'center', marginRight: '15px', fontSize: '1.4rem' }}>🤝</span>
@@ -429,7 +416,9 @@ const ItemPage = () => {
                             <div className="edit-field"><label>DESCRIPTION</label><textarea value={editFormData.item_description} onChange={(e) => setEditFormData({ ...editFormData, item_description: e.target.value })} rows="3" /></div>
                             <div style={{ display: 'flex', gap: '15px' }}>
                                 <div className="edit-field" style={{ flex: 1 }}><label>PRICE (PKR)</label><input type="number" value={editFormData.price} onChange={(e) => setEditFormData({ ...editFormData, price: e.target.value })} /></div>
-                                <div className="edit-field" style={{ flex: 1 }}><label>STOCK QUANTITY</label><input type="number" value={editFormData.stock_quantity} onChange={(e) => setEditFormData({ ...editFormData, stock_quantity: e.target.value })} /></div>
+                                {!item.is_digital && (
+                                    <div className="edit-field" style={{ flex: 1 }}><label>STOCK QUANTITY</label><input type="number" value={editFormData.stock_quantity} onChange={(e) => setEditFormData({ ...editFormData, stock_quantity: e.target.value })} /></div>
+                                )}
                             </div>
                         </div>
                         <div className="playcard-footer">

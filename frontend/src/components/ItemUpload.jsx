@@ -18,12 +18,12 @@ const ItemUpload = () => {
         categoryId: '1',
         listingType: 'sell', 
         quantity: 1,
-        borrowDuration: 14, //  Default 14 days
-        isDigital: false    //  Track if it's an E-Book
+        borrowDuration: 14, 
+        isDigital: false    
     });
     
     const [itemImage, setItemImage] = useState(null);
-    const [itemFile, setItemFile] = useState(null); // State for the Secure PDF
+    const [itemFile, setItemFile] = useState(null); 
 
     useEffect(() => {
         const storedUser = sessionStorage.getItem('user');
@@ -66,19 +66,23 @@ const ItemUpload = () => {
         dataToSend.append('title', formData.title);
         dataToSend.append('description', formData.description);
         dataToSend.append('price', formData.price);
-        dataToSend.append('listingType', formData.listingType);
+        dataToSend.append('listingType', formData.isDigital ? 'borrow' : formData.listingType);
         dataToSend.append('categoryId', formData.categoryId);
         dataToSend.append('departmentId', formData.departmentId);
-        dataToSend.append('quantity', formData.quantity);
         dataToSend.append('isDigital', formData.isDigital);
         
-        // Only send borrowDuration if the item is meant to be borrowed
-        if (formData.listingType === 'borrow') {
+        if (formData.listingType === 'borrow' || formData.isDigital) {
             dataToSend.append('borrowDuration', formData.borrowDuration);
         }
 
-        if (itemImage) dataToSend.append('itemImage', itemImage);
-        if (itemFile && formData.isDigital) dataToSend.append('itemFile', itemFile);
+        // Logic for Digital vs Physical
+        if (formData.isDigital) {
+            dataToSend.append('quantity', 1); // Default for DB
+            dataToSend.append('itemFile', itemFile);
+        } else {
+            dataToSend.append('quantity', formData.quantity);
+            if (itemImage) dataToSend.append('itemImage', itemImage);
+        }
 
         try {
             const token = sessionStorage.getItem('token');
@@ -111,6 +115,16 @@ const ItemUpload = () => {
                 {message && <div className={isSuccess ? "message-alert success" : "message-alert"} style={isSuccess ? {color: '#4CAF50', fontWeight: 'bold', marginBottom: '15px'} : {}}>{message}</div>}
 
                 <form onSubmit={handleSubmit} className="signup-form">
+                    
+                    {/* DIGITAL UPLOAD TOGGLE */}
+                    <div className="input-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '10px', marginBottom: '15px', padding: '15px', backgroundColor: 'rgba(255, 215, 0, 0.05)', border: '1px solid #FFD700', borderRadius: '4px' }}>
+                        <input type="checkbox" name="isDigital" checked={formData.isDigital} onChange={(e) => {
+                            handleChange(e);
+                            if (e.target.checked) setFormData(prev => ({ ...prev, quantity: 1, listingType: 'borrow' }));
+                        }} style={{ width: '20px', height: '20px', cursor: 'pointer' }} />
+                        <label style={{ margin: 0, color: '#FFD700', fontWeight: 'bold', cursor: 'pointer' }}>This is a Digital E-Book (PDF)</label>
+                    </div>
+
                     <div className="input-group">
                         <label>Item Title:</label>
                         <input type="text" name="title" placeholder="What are you listing?" value={formData.title} onChange={handleChange} required />
@@ -121,24 +135,25 @@ const ItemUpload = () => {
                             <label>Price (PKR):</label>
                             <input type="number" name="price" placeholder="e.g. 500" value={formData.price} onChange={handleChange} min="0" required />
                         </div>
-                        <div className="input-group" style={{ flex: 1 }}>
-                            <label>Stock Quantity:</label>
-                            {/* Automatically force 1 quantity if it's a digital file */}
-                            <input type="number" name="quantity" value={formData.quantity} onChange={handleChange} min="1" required disabled={formData.isDigital} style={{ opacity: formData.isDigital ? 0.5 : 1 }} />
-                        </div>
+                        
+                        {/* HIDE QUANTITY IF DIGITAL */}
+                        {!formData.isDigital && (
+                            <div className="input-group" style={{ flex: 1 }}>
+                                <label>Stock Quantity:</label>
+                                <input type="number" name="quantity" value={formData.quantity} onChange={handleChange} min="1" required />
+                            </div>
+                        )}
                     </div>
                     
                     <div className="input-group">
                         <label>Listing Type:</label>
-                        {/* Automatically force 'borrow' if it's a digital file */}
                         <select name="listingType" value={formData.listingType} onChange={handleChange} required disabled={formData.isDigital} style={{ opacity: formData.isDigital ? 0.5 : 1 }}>
                             <option value="sell">Sell</option>
                             <option value="borrow">Lend/Borrow</option>
                         </select>
                     </div>
 
-                    {/* CONDITIONAL BORROW DURATION */}
-                    {formData.listingType === 'borrow' && (
+                    {(formData.listingType === 'borrow' || formData.isDigital) && (
                         <div className="input-group" style={{ padding: '10px', border: '1px solid #4A90E2', backgroundColor: '#1a1a1a', borderRadius: '4px' }}>
                             <label style={{ color: '#4A90E2' }}>Borrow Duration (Days):</label>
                             <input type="number" name="borrowDuration" value={formData.borrowDuration} onChange={handleChange} min="1" max="90" required />
@@ -146,21 +161,17 @@ const ItemUpload = () => {
                         </div>
                     )}
 
-                    {/* DIGITAL UPLOAD TOGGLE */}
-                    <div className="input-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '10px', marginTop: '10px', padding: '10px', backgroundColor: 'rgba(255, 215, 0, 0.05)', border: '1px solid #FFD700', borderRadius: '4px' }}>
-                        <input type="checkbox" name="isDigital" checked={formData.isDigital} onChange={(e) => {
-                            handleChange(e);
-                            if (e.target.checked) setFormData(prev => ({ ...prev, quantity: 1, listingType: 'borrow' }));
-                        }} style={{ width: '20px', height: '20px', cursor: 'pointer' }} />
-                        <label style={{ margin: 0, color: '#FFD700', fontWeight: 'bold', cursor: 'pointer' }}>Is this a Digital E-Book (PDF)?</label>
-                    </div>
-
-                    {/* CONDITIONAL SECURE PDF INPUT */}
-                    {formData.isDigital && (
+                    {/* DYNAMIC UPLOAD FIELD (PDF vs IMAGE) */}
+                    {formData.isDigital ? (
                         <div className="input-group" style={{ padding: '15px', border: '2px dashed #FFD700', backgroundColor: '#1a1a1a', marginTop: '10px' }}>
                             <label style={{ color: '#FFD700', fontWeight: 'bold' }}>Upload Secure PDF:</label>
                             <input type="file" name="itemFile" accept="application/pdf" onChange={handleDocumentChange} className="file-input" required style={{ border: 'none', padding: 0 }} />
                             <small style={{ color: '#aaa', display: 'block', marginTop: '5px' }}>This file will be locked in the digital vault. Users cannot download or copy it.</small>
+                        </div>
+                    ) : (
+                        <div className="input-group">
+                            <label>Cover Image (Required):</label>
+                            <input type="file" name="itemImage" accept="image/*" onChange={handleImageChange} className="file-input" required />
                         </div>
                     )}
 
@@ -183,10 +194,6 @@ const ItemUpload = () => {
                     <div className="input-group">
                         <label>Description:</label>
                         <textarea name="description" placeholder="Condition, details, etc." value={formData.description} onChange={handleChange} rows="3" />
-                    </div>
-                    <div className="input-group">
-                        <label>Cover Image (Required):</label>
-                        <input type="file" name="itemImage" accept="image/*" onChange={handleImageChange} className="file-input" required />
                     </div>
 
                     <button type="submit" className="btn-ribbon" style={{ marginTop: '20px' }}>UPLOAD ITEM</button>

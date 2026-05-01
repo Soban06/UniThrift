@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const jwt = require('jsonwebtoken'); 
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const app = express();
@@ -50,7 +50,7 @@ const dbConfig = {
 
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1]; 
+    const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) return res.status(401).json({ message: "Access Denied: No Token Provided." });
 
@@ -73,7 +73,7 @@ sql.connect(dbConfig)
         app.post('/api/signup', upload.single('profilePic'), async (req, res) => {
             const { name, email, password, departmentId, description } = req.body;
             if (!email.endsWith('nu.edu.pk')) return res.status(400).json({ error: 'Only nu.edu.pk emails are allowed.' });
-            
+
             try {
                 const checkUser = await pool.request().input('email', sql.VarChar, email).query('SELECT * FROM Users WHERE university_email = @email');
                 if (checkUser.recordset.length > 0) return res.status(400).json({ error: 'A user with this email already exists.' });
@@ -148,11 +148,11 @@ sql.connect(dbConfig)
         // ============================================================================
         //  MARKETPLACE, ITEMS & DIGITAL VAULT
         // ============================================================================
-        
+
         app.post('/api/items/upload', authenticateToken, upload.fields([{ name: 'itemImage', maxCount: 1 }, { name: 'itemFile', maxCount: 1 }]), async (req, res) => {
             try {
                 const { sellerId, title, description, price, listingType, departmentId, categoryId, quantity, isDigital, borrowDuration } = req.body;
-                
+
                 const finalImageUrl = (req.files && req.files['itemImage']) ? `http://localhost:5000/uploads/${req.files['itemImage'][0].filename}` : '/default.png';
                 const finalFileUrl = (req.files && req.files['itemFile']) ? `secure_vault/${req.files['itemFile'][0].filename}` : null;
                 const digitalFlag = isDigital === 'true' || isDigital === true ? 1 : 0;
@@ -236,7 +236,19 @@ sql.connect(dbConfig)
 
         app.get('/api/items', async (req, res) => {
             try {
-                const result = await pool.request().query(`SELECT i.*, u.full_name as seller_name, d.department_name as dept_name, c.category_name FROM Items i JOIN Users u ON i.seller_id = u.user_id JOIN Departments d ON i.department_id = d.department_id JOIN Categories c ON i.category_id = c.category_id WHERE i.stock_quantity > 0 AND i.status = 'available' ORDER BY i.created_at DESC`);
+                const result = await pool.request().query(`
+                    SELECT i.*, 
+                           u.full_name as seller_name, 
+                           d.department_name as dept_name, 
+                           c.category_name 
+                    FROM Items i 
+                    JOIN Users u ON i.seller_id = u.user_id 
+                    JOIN Departments d ON i.department_id = d.department_id 
+                    JOIN Categories c ON i.category_id = c.category_id 
+                    WHERE (i.stock_quantity > 0 OR i.is_digital = 1) 
+                    AND i.status = 'available' 
+                    ORDER BY i.created_at DESC
+                `);
                 res.status(200).json(result.recordset);
             } catch (err) {
                 res.status(500).json({ error: "Failed to fetch items." });
@@ -252,15 +264,16 @@ sql.connect(dbConfig)
                            d.department_name as dept_name, 
                            c.category_name, 
                            (SELECT COUNT(*) FROM Wishlist WHERE item_id = @itemId) as wishlist_count, 
-                           ISNULL((SELECT SUM(quantity) FROM Transactions WHERE seller_id = i.seller_id AND status = 'completed' AND transaction_type = 'purchase'), 0) as seller_sold_count,
-                           (SELECT ISNULL(AVG(CAST(r.score AS FLOAT)), 0) FROM Ratings r JOIN Transactions t ON r.transaction_id = t.transaction_id WHERE t.item_id = @itemId) as item_rating
+                           ISNULL((SELECT SUM(quantity) FROM Transactions WHERE item_id = @itemId AND status = 'completed' AND transaction_type = 'purchase'), 0) as item_sold_count,
+                           (SELECT ISNULL(AVG(CAST(r.score AS FLOAT)), 0) FROM Ratings r JOIN Transactions t ON r.transaction_id = t.transaction_id WHERE t.item_id = @itemId) as item_rating,
+                           ISNULL((SELECT SUM(quantity) FROM Transactions WHERE item_id = @itemId AND transaction_type = 'borrow' AND status IN ('completed', 'returned')), 0) as borrowed_count
                     FROM Items i 
                     JOIN Users u ON i.seller_id = u.user_id 
                     JOIN Departments d ON i.department_id = d.department_id 
                     JOIN Categories c ON i.category_id = c.category_id 
                     WHERE i.item_id = @itemId
                 `);
-                
+
                 if (result.recordset.length > 0) res.json(result.recordset[0]);
                 else res.status(404).json({ message: "Item not found" });
             } catch (err) {
@@ -285,7 +298,7 @@ sql.connect(dbConfig)
                     .input('buyer', sql.Int, req.body.buyerId)
                     .input('item', sql.Int, req.body.itemId)
                     .query('SELECT TOP 1 transaction_id FROM Transactions WHERE buyer_id = @buyer AND item_id = @item ORDER BY transaction_id DESC');
-                
+
                 if (txRes.recordset.length > 0) {
                     const txId = txRes.recordset[0].transaction_id;
                     await pool.request()
@@ -404,27 +417,69 @@ sql.connect(dbConfig)
 
         app.post('/api/transactions/borrow', authenticateToken, async (req, res) => {
             try {
-                await pool.request().input('ItemID', sql.Int, req.body.itemId).input('BuyerID', sql.Int, req.body.buyerId).input('SellerID', sql.Int, req.body.sellerId).input('Qty', sql.Int, req.body.qty).execute('sp_InitiateBorrowHandshake');
-                res.status(200).json({ message: "Borrow request sent! Waiting for handshake." });
+                // 1. Check if the item is digital
+                const itemCheck = await pool.request()
+                    .input('itemId', sql.Int, req.body.itemId)
+                    .query('SELECT is_digital FROM Items WHERE item_id = @itemId');
+                
+                const isDigital = itemCheck.recordset[0]?.is_digital;
+
+                if (isDigital) {
+                    // 2. It's DIGITAL: Bypass the strict stock check in the procedure
+                    const txResult = await pool.request()
+                        .input('item', sql.Int, req.body.itemId)
+                        .input('buyer', sql.Int, req.body.buyerId)
+                        .input('seller', sql.Int, req.body.sellerId)
+                        .input('qty', sql.Int, req.body.qty)
+                        .query(`
+                            INSERT INTO Transactions (item_id, buyer_id, seller_id, transaction_type, status, quantity) 
+                            VALUES (@item, @buyer, @seller, 'borrow', 'pending', @qty); 
+                            SELECT SCOPE_IDENTITY() AS transaction_id;
+                        `);
+                    
+                    const txId = txResult.recordset[0].transaction_id;
+
+                    await pool.request()
+                        .input('buyer', sql.Int, req.body.buyerId)
+                        .input('seller', sql.Int, req.body.sellerId)
+                        .input('item', sql.Int, req.body.itemId)
+                        .input('tx', sql.Int, txId)
+                        .query(`
+                            INSERT INTO Notifications (user_id, sender_id, item_id, transaction_id, notification_type, message_text) 
+                            VALUES (@seller, @buyer, @item, @tx, 'handshake_request', 'I would like to borrow this digital item! Please accept to grant access.');
+                        `);
+                        
+                    res.status(200).json({ message: "Borrow request sent! Waiting for handshake." });
+                } else {
+                    // 3. It's PHYSICAL: Send it through the normal strict Stored Procedure
+                    await pool.request()
+                        .input('ItemID', sql.Int, req.body.itemId)
+                        .input('BuyerID', sql.Int, req.body.buyerId)
+                        .input('SellerID', sql.Int, req.body.sellerId)
+                        .input('Qty', sql.Int, req.body.qty)
+                        .execute('sp_InitiateBorrowHandshake');
+                        
+                    res.status(200).json({ message: "Borrow request sent! Waiting for handshake." });
+                }
             } catch (err) {
                 res.status(500).json({ error: err.message });
             }
         });
 
         app.post('/api/transactions/handshake/resolve', authenticateToken, async (req, res) => {
-            const { transactionId, userId, action, sosId } = req.body; 
+            const { transactionId, userId, action, sosId } = req.body;
             try {
                 await pool.request()
                     .input('TransactionID', sql.Int, transactionId)
                     .input('ResolvingUserID', sql.Int, userId)
                     .input('Action', sql.VarChar(10), action)
                     .execute('sp_ResolveHandshake');
-                
+
                 if (action === 'accept') {
-                    // DYNAMIC DURATION LOGIC
+                    // THE FIX: GETUTCDATE() prevents the +5 timezone shift
                     await pool.request().input('txId', sql.Int, transactionId).query(`
                         UPDATE Transactions 
-                        SET return_date = DATEADD(day, ISNULL((SELECT borrow_duration FROM Items WHERE item_id = (SELECT item_id FROM Transactions WHERE transaction_id = @txId)), 14), GETDATE()) 
+                        SET return_date = DATEADD(day, ISNULL((SELECT borrow_duration FROM Items WHERE item_id = (SELECT item_id FROM Transactions WHERE transaction_id = @txId)), 14), GETUTCDATE()) 
                         WHERE transaction_id = @txId AND transaction_type = 'borrow'
                     `);
 
@@ -466,7 +521,7 @@ sql.connect(dbConfig)
                 await pool.request()
                     .input('tx', sql.Int, transactionId).input('seller', sql.Int, sellerId).input('item', sql.Int, itemId).input('buyer', sql.Int, req.user.id)
                     .query(`INSERT INTO Notifications (user_id, sender_id, item_id, transaction_id, notification_type, message_text) VALUES (@seller, @buyer, @item, @tx, 'return_handshake', 'The borrower states they returned this physical item. Confirm receipt to close the transaction.');`);
-                res.json({ message: 'Return initiated.'});
+                res.json({ message: 'Return initiated.' });
             } catch (error) { res.status(500).json({ error: error.message }); }
         });
 
@@ -478,7 +533,7 @@ sql.connect(dbConfig)
                     UPDATE Items SET stock_quantity = stock_quantity + (SELECT quantity FROM Transactions WHERE transaction_id = @txId) WHERE item_id = (SELECT item_id FROM Transactions WHERE transaction_id = @txId);
                     DELETE FROM Notifications WHERE transaction_id = @txId AND notification_type = 'return_handshake';
                 `);
-                res.json({ message: 'Item returned successfully.'});
+                res.json({ message: 'Item returned successfully.' });
             } catch (error) { res.status(500).json({ error: error.message }); }
         });
 
@@ -487,9 +542,9 @@ sql.connect(dbConfig)
         // ============================================================================
         app.get('/api/users/:userId/active-ebooks', authenticateToken, async (req, res) => {
             try {
-                const result = await pool.request().input('userId', sql.Int, req.params.userId).query(`SELECT t.transaction_id, i.title, t.return_date FROM Transactions t JOIN Items i ON t.item_id = i.item_id WHERE t.buyer_id = @userId AND t.status = 'completed' AND i.is_digital = 1 AND (t.return_date IS NULL OR t.return_date > GETDATE())`);
+                const result = await pool.request().input('userId', sql.Int, req.params.userId).query(`SELECT t.transaction_id, i.title, t.return_date FROM Transactions t JOIN Items i ON t.item_id = i.item_id WHERE t.buyer_id = @userId AND t.status = 'completed' AND i.is_digital = 1 AND (t.return_date IS NULL OR t.return_date > GETUTCDATE())`);
                 res.json(result.recordset);
-            } catch(err) { res.status(500).json({error: err.message}); }
+            } catch (err) { res.status(500).json({ error: err.message }); }
         });
 
         app.post('/api/wishlist/toggle', authenticateToken, async (req, res) => {
@@ -507,7 +562,7 @@ sql.connect(dbConfig)
             }
         });
 
-        app.get('/api/users/:userId/wishlist', async (req, res) => {
+        app.get('/api/users/:userId/wishlist', authenticateToken, async (req, res) => {
             try {
                 const result = await pool.request().input('userId', sql.Int, req.params.userId).query(`SELECT i.*, u.full_name as seller_name, d.department_name as dept_name FROM Items i JOIN Wishlist w ON i.item_id = w.item_id JOIN Users u ON i.seller_id = u.user_id JOIN Departments d ON i.department_id = d.department_id WHERE w.user_id = @userId ORDER BY w.created_at DESC`);
                 res.status(200).json(result.recordset);
@@ -533,14 +588,26 @@ sql.connect(dbConfig)
 
         app.get('/api/users/:id/purchases', authenticateToken, async (req, res) => {
             try {
-                const result = await pool.request().input('userId', sql.Int, req.params.id).query(`SELECT t.transaction_id, i.item_id, i.title, t.quantity, t.transaction_date, t.status AS tx_status, i.status AS item_status, i.is_digital, i.seller_id FROM Transactions t JOIN Items i ON t.item_id = i.item_id WHERE t.buyer_id = @userId AND t.transaction_type = 'purchase' ORDER BY t.transaction_date DESC`);
+                const result = await pool.request().input('userId', sql.Int, req.params.id).query(`
+                    SELECT t.transaction_id, i.item_id, i.title, t.quantity, t.transaction_date, t.status AS tx_status, i.status AS item_status, i.is_digital, i.seller_id 
+                    FROM Transactions t 
+                    JOIN Items i ON t.item_id = i.item_id 
+                    WHERE t.buyer_id = @userId AND t.transaction_type = 'purchase' AND t.status != 'cancelled'
+                    ORDER BY t.transaction_date DESC
+                `);
                 res.json(result.recordset);
             } catch (err) { res.status(500).json({ error: err.message }); }
         });
 
         app.get('/api/users/:id/borrows', authenticateToken, async (req, res) => {
             try {
-                const result = await pool.request().input('userId', sql.Int, req.params.id).query(`SELECT t.transaction_id, i.item_id, i.title, t.quantity, t.transaction_date, t.return_date, t.status AS tx_status, i.status AS item_status, i.is_digital, i.seller_id FROM Transactions t JOIN Items i ON t.item_id = i.item_id WHERE t.buyer_id = @userId AND t.transaction_type = 'borrow' ORDER BY t.transaction_date DESC`);
+                const result = await pool.request().input('userId', sql.Int, req.params.id).query(`
+                    SELECT t.transaction_id, i.item_id, i.title, t.quantity, t.transaction_date, t.return_date, t.status AS tx_status, i.status AS item_status, i.is_digital, i.seller_id 
+                    FROM Transactions t 
+                    JOIN Items i ON t.item_id = i.item_id 
+                    WHERE t.buyer_id = @userId AND t.transaction_type = 'borrow' AND t.status != 'cancelled'
+                    ORDER BY t.transaction_date DESC
+                `);
                 res.json(result.recordset);
             } catch (err) { res.status(500).json({ error: err.message }); }
         });
@@ -586,7 +653,7 @@ sql.connect(dbConfig)
                         LEFT JOIN Departments d ON s.department_id = d.department_id
                         WHERE s.request_id = @sosId
                     `);
-                
+
                 if (result.recordset.length === 0) return res.status(404).json({ error: "SOS not found" });
                 res.json(result.recordset[0]);
             } catch (err) {
@@ -598,13 +665,13 @@ sql.connect(dbConfig)
             const { requesterId, deptId, title, description, qty, price, priority } = req.body;
             try {
                 const result = await pool.request()
-                    .input('reqId', sql.Int, requesterId).input('deptId', sql.Int, deptId).input('title', sql.VarChar(255), title).input('desc', sql.NVarChar(sql.MAX), description || '').input('qty', sql.Int, qty).input('price', sql.Decimal(10,2), price).input('priority', sql.VarChar(20), priority)
+                    .input('reqId', sql.Int, requesterId).input('deptId', sql.Int, deptId).input('title', sql.VarChar(255), title).input('desc', sql.NVarChar(sql.MAX), description || '').input('qty', sql.Int, qty).input('price', sql.Decimal(10, 2), price).input('priority', sql.VarChar(20), priority)
                     .query(`
                         INSERT INTO SOS_Requests (requester_id, department_id, title, description, quantity_needed, price_willing_to_pay, priority)
                         OUTPUT INSERTED.request_id
                         VALUES (@reqId, @deptId, @title, @desc, @qty, @price, @priority);
                     `);
-                
+
                 const newSosId = result.recordset[0].request_id;
                 const alertMsg = `Emergency Request: Needs ${title} (${priority.toUpperCase()})`;
 
@@ -628,15 +695,15 @@ sql.connect(dbConfig)
             const { sosId, lenderId, requesterId, title, price, qty, deptId } = req.body;
             try {
                 const itemResult = await pool.request()
-                    .input('seller', sql.Int, lenderId).input('title', sql.VarChar, `S.O.S: ${title}`).input('price', sql.Decimal(10,2), price).input('dept', sql.Int, deptId).input('qty', sql.Int, qty)
+                    .input('seller', sql.Int, lenderId).input('title', sql.VarChar, `S.O.S: ${title}`).input('price', sql.Decimal(10, 2), price).input('dept', sql.Int, deptId).input('qty', sql.Int, qty)
                     .query(`INSERT INTO Items (seller_id, title, price, listing_type, department_id, status, stock_quantity) OUTPUT INSERTED.item_id VALUES (@seller, @title, @price, 'sos_borrow', @dept, 'available', @qty)`);
-                
+
                 const newItemId = itemResult.recordset[0].item_id;
 
                 const txResult = await pool.request()
                     .input('item', sql.Int, newItemId).input('buyer', sql.Int, requesterId).input('seller', sql.Int, lenderId).input('qty', sql.Int, qty)
                     .query(`INSERT INTO Transactions (item_id, buyer_id, seller_id, transaction_type, status, quantity) VALUES (@item, @buyer, @seller, 'borrow', 'pending', @qty); SELECT SCOPE_IDENTITY() AS transaction_id;`);
-                
+
                 const newTxId = txResult.recordset[0].transaction_id;
 
                 await pool.request().input('item', sql.Int, newItemId).input('qty', sql.Int, qty).query("UPDATE Items SET stock_quantity = stock_quantity - @qty WHERE item_id = @item");
@@ -654,7 +721,7 @@ sql.connect(dbConfig)
         app.delete('/api/sos/:id', authenticateToken, async (req, res) => {
             try {
                 const sosId = parseInt(req.params.id, 10);
-                const userId = parseInt(req.user.id, 10); 
+                const userId = parseInt(req.user.id, 10);
 
                 if (isNaN(sosId) || isNaN(userId)) return res.status(400).json({ error: "Invalid ID parameters." });
 
