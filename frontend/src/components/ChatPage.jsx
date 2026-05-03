@@ -4,7 +4,6 @@ import axios from 'axios';
 import './ChatPage.css';
 
 const ChatPage = () => {
-    // Look for multiple parameter names just in case they differ in App.js!
     const params = useParams();
     const passedItemId = params.initialItemId || params.itemId;
     const passedSellerId = params.initialSellerId || params.sellerId;
@@ -19,14 +18,15 @@ const ChatPage = () => {
     const [newMessage, setNewMessage] = useState('');
     const [loading, setLoading] = useState(true);
 
-    // 🌟 1. WRAPPED IN USECALLBACK
     const handleSelectContact = useCallback(async (contact, activeUser) => {
         if (!activeUser) return;
         
         setSelectedContact(contact);
         try {
             const token = sessionStorage.getItem('token');
-            const activeItemId = contact.item_id || passedItemId || 0; 
+            
+            // 🌟 THE FIX: If the database specifically returned null, force it to 'null' so JS doesn't skip it
+            const activeItemId = contact.item_id === null ? 'null' : (contact.item_id || passedItemId || 'null'); 
             
             const response = await axios.get(`http://localhost:5000/api/messages/${activeItemId}/${activeUser.id}/${contact.contact_id}`, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -35,9 +35,8 @@ const ChatPage = () => {
         } catch (error) {
             console.error("Failed to load chat history", error);
         }
-    }, [passedItemId]); // Only depends on passedItemId
+    }, [passedItemId]);
 
-    // 🌟 2. WRAPPED IN USECALLBACK
     const fetchContacts = useCallback(async (user) => {
         try {
             const token = sessionStorage.getItem('token');
@@ -48,18 +47,16 @@ const ChatPage = () => {
             setLoading(false);
 
             if (passedSellerId) {
-                // Check if we've already chatted with this seller
                 const existingContact = response.data.find(c => String(c.contact_id) === String(passedSellerId));
                 
                 if (existingContact) {
                     setContacts(response.data);
                     handleSelectContact(existingContact, user);
                 } else {
-                    // It's a new conversation here so we force them into the list
                     const newTempContact = {
                         contact_id: passedSellerId,
                         full_name: "New Conversation",
-                        item_id: passedItemId,
+                        item_id: passedItemId || null, // Ensure explicit null here too
                         last_message: "Start a conversation!"
                     };
                     setContacts([newTempContact, ...response.data]);
@@ -75,9 +72,8 @@ const ChatPage = () => {
             console.error("Failed to fetch contacts", error);
             setLoading(false);
         }
-    }, [passedSellerId, passedItemId, handleSelectContact]); // Proper dependencies
+    }, [passedSellerId, passedItemId, handleSelectContact]);
 
-    // 🌟 3. PROPER DEPENDENCY ARRAY ADDED
     useEffect(() => {
         const storedUser = JSON.parse(sessionStorage.getItem('user'));
         if (!storedUser) {
@@ -89,7 +85,7 @@ const ChatPage = () => {
         
         fetchContacts(userObj);
 
-    }, [navigate, fetchContacts]); // ESLint is finally happy!
+    }, [navigate, fetchContacts]); 
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -101,7 +97,9 @@ const ChatPage = () => {
 
         try {
             const token = sessionStorage.getItem('token');
-            const activeItemId = selectedContact.item_id || passedItemId || null;
+            
+            // 🌟 THE FIX: Apply the same strict null check when sending a new message
+            const activeItemId = selectedContact.item_id === null ? null : (selectedContact.item_id || passedItemId || null);
 
             await axios.post('http://localhost:5000/api/messages', {
                 senderId: currentUser.id,
@@ -144,7 +142,7 @@ const ChatPage = () => {
                 {/* LEFT SIDEBAR */}
                 <div className="chat-sidebar">
                     <h3 className="sidebar-title">Recent Conversations</h3>
-                    <div className="contact-list">
+                    <div className="contact-list" style={{ overflowY: 'auto', maxHeight: '60vh', paddingRight: '5px' }}>
                         {contacts.length === 0 && <p className="no-contacts">No messages yet.</p>}
                         {contacts.map(contact => (
                             <div 
@@ -175,7 +173,7 @@ const ChatPage = () => {
                                 </div>
                             </div>
 
-                            <div className="mockup-message-display">
+                            <div className="mockup-message-display" style={{ overflowY: 'auto', height: '50vh', display: 'flex', flexDirection: 'column', padding: '15px' }}>
                                 {messages.length === 0 ? (
                                     <div className="empty-chat-msg">Send a message to start the conversation!</div>
                                 ) : (

@@ -329,9 +329,27 @@ const ProfilePage = () => {
                         </div>
                     </div>
 
+                    {/* 🌟 ADDED CHAT BUTTON BELOW NOTIFICATION CENTER */}
                     {isOwnProfile && currentUserId && (
-                        <div style={{ marginTop: '20px' }}>
+                        <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                             <NotificationCenter currentUserId={currentUserId} />
+                            
+                            <button 
+                                onClick={() => navigate('/chat')}
+                                style={{ 
+                                    width: '100%', 
+                                    backgroundColor: '#333', 
+                                    color: 'white', 
+                                    padding: '15px', 
+                                    border: '1px solid #555', 
+                                    cursor: 'pointer', 
+                                    fontWeight: 'bold', 
+                                    textTransform: 'uppercase', 
+                                    fontSize: '1.1rem' 
+                                }}
+                            >
+                                Open Chats
+                            </button>
                         </div>
                     )}
                 </div>
