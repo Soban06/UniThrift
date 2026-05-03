@@ -53,6 +53,7 @@ DB_PASSWORD=YourPassword123
 DB_SERVER=localhost
 DB_NAME=UniThrift
 PORT=5000
+JWT_SECRET=YOUR_SECURE_PASSWORD
 ```
 > **Note:** Ensure the `Users` table is created in your `UniThrift` database before registering a new account.
 ## How to Run
